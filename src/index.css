@@ -1,0 +1,260 @@
+@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&family=Syne:wght@600;700;800&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* AgriChain — Cyber-Agri Design System
+   Deep emerald + obsidian, neon lime + cyan accents.
+   All colors HSL.
+*/
+
+@layer base {
+  :root {
+    --background: 160 40% 4%;
+    --foreground: 150 25% 92%;
+
+    --card: 160 35% 6%;
+    --card-foreground: 150 25% 92%;
+
+    --popover: 160 40% 5%;
+    --popover-foreground: 150 25% 92%;
+
+    --primary: 142 90% 55%;          /* neon lime */
+    --primary-foreground: 160 60% 6%;
+    --primary-glow: 142 100% 65%;
+
+    --secondary: 168 80% 50%;        /* cyan-teal */
+    --secondary-foreground: 160 60% 6%;
+
+    --accent: 38 100% 60%;           /* warm amber */
+    --accent-foreground: 160 60% 6%;
+
+    --muted: 160 25% 12%;
+    --muted-foreground: 150 15% 62%;
+
+    --destructive: 0 90% 62%;
+    --destructive-foreground: 0 0% 100%;
+
+    --border: 160 30% 14%;
+    --input: 160 30% 12%;
+    --ring: 142 90% 55%;
+
+    --radius: 0.75rem;
+
+    /* Neon system */
+    --neon-lime: 142 100% 60%;
+    --neon-cyan: 168 100% 55%;
+    --neon-amber: 38 100% 60%;
+    --neon-magenta: 320 100% 65%;
+
+    --gradient-primary: linear-gradient(135deg, hsl(142 90% 50%) 0%, hsl(168 90% 50%) 100%);
+    --gradient-hero: radial-gradient(ellipse at top, hsl(160 60% 10%) 0%, hsl(160 50% 4%) 60%, hsl(160 40% 2%) 100%);
+    --gradient-card: linear-gradient(160deg, hsl(160 40% 8% / 0.8) 0%, hsl(160 35% 5% / 0.9) 100%);
+    --gradient-amber: linear-gradient(135deg, hsl(38 100% 60%), hsl(20 100% 55%));
+
+    --shadow-neon-lime: 0 0 24px hsl(142 100% 55% / 0.45), 0 0 48px hsl(142 100% 55% / 0.25);
+    --shadow-neon-cyan: 0 0 24px hsl(168 100% 55% / 0.45), 0 0 48px hsl(168 100% 55% / 0.25);
+    --shadow-neon-amber: 0 0 24px hsl(38 100% 60% / 0.45), 0 0 48px hsl(38 100% 60% / 0.25);
+    --shadow-elevated: 0 20px 60px -20px hsl(142 100% 50% / 0.25);
+
+    --sidebar-background: 160 40% 5%;
+    --sidebar-foreground: 150 25% 88%;
+    --sidebar-primary: 142 90% 55%;
+    --sidebar-primary-foreground: 160 60% 6%;
+    --sidebar-accent: 160 30% 10%;
+    --sidebar-accent-foreground: 150 25% 92%;
+    --sidebar-border: 160 30% 14%;
+    --sidebar-ring: 142 90% 55%;
+  }
+
+  .dark {
+    /* Same — app is dark-first */
+    --background: 160 40% 4%;
+    --foreground: 150 25% 92%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  html {
+    scroll-behavior: smooth;
+  }
+
+  body {
+    @apply bg-background text-foreground antialiased;
+    font-family: 'Space Grotesk', system-ui, sans-serif;
+    background-image:
+      radial-gradient(ellipse 80% 50% at 50% -10%, hsl(142 80% 25% / 0.18), transparent),
+      radial-gradient(ellipse 60% 50% at 90% 100%, hsl(168 80% 25% / 0.12), transparent);
+    background-attachment: fixed;
+  }
+
+  h1, h2, h3, .font-display {
+    font-family: 'Syne', 'Space Grotesk', sans-serif;
+    letter-spacing: -0.02em;
+  }
+
+  .font-mono {
+    font-family: 'JetBrains Mono', monospace;
+  }
+}
+
+@layer components {
+  /* Animated grid background */
+  .bg-grid {
+    background-image:
+      linear-gradient(hsl(142 80% 50% / 0.07) 1px, transparent 1px),
+      linear-gradient(90deg, hsl(142 80% 50% / 0.07) 1px, transparent 1px);
+    background-size: 48px 48px;
+    mask-image: radial-gradient(ellipse 80% 60% at 50% 0%, black, transparent 80%);
+  }
+
+  .bg-grid-dense {
+    background-image:
+      linear-gradient(hsl(168 80% 50% / 0.08) 1px, transparent 1px),
+      linear-gradient(90deg, hsl(168 80% 50% / 0.08) 1px, transparent 1px);
+    background-size: 28px 28px;
+  }
+
+  /* Neon edge card */
+  .neon-card {
+    @apply relative rounded-2xl border border-border bg-card overflow-hidden;
+    background-image: var(--gradient-card);
+    backdrop-filter: blur(8px);
+    transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+  }
+
+  .neon-card::before {
+    content: '';
+    position: absolute;
+    inset: -1px;
+    border-radius: inherit;
+    padding: 1px;
+    background: linear-gradient(135deg, hsl(var(--primary) / 0.6), hsl(var(--secondary) / 0.4), transparent 60%);
+    -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+    -webkit-mask-composite: xor;
+            mask-composite: exclude;
+    pointer-events: none;
+    opacity: 0.6;
+    transition: opacity 0.4s ease;
+  }
+
+  .neon-card:hover::before {
+    opacity: 1;
+  }
+
+  .neon-card:hover {
+    transform: translateY(-4px);
+    box-shadow: var(--shadow-elevated);
+  }
+
+  /* Glow text */
+  .text-glow-lime {
+    color: hsl(var(--primary));
+    text-shadow: 0 0 16px hsl(var(--primary) / 0.6), 0 0 32px hsl(var(--primary) / 0.3);
+  }
+  .text-glow-cyan {
+    color: hsl(var(--secondary));
+    text-shadow: 0 0 16px hsl(var(--secondary) / 0.6);
+  }
+  .text-glow-amber {
+    color: hsl(var(--accent));
+    text-shadow: 0 0 16px hsl(var(--accent) / 0.6);
+  }
+
+  /* Spark trail */
+  .spark {
+    position: absolute;
+    width: 3px;
+    height: 3px;
+    border-radius: 50%;
+    background: hsl(var(--primary));
+    box-shadow: 0 0 8px hsl(var(--primary)), 0 0 16px hsl(var(--primary) / 0.6);
+    pointer-events: none;
+  }
+
+  .ring-neon {
+    box-shadow: 0 0 0 1px hsl(var(--primary) / 0.5), var(--shadow-neon-lime);
+  }
+
+  .scanline::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: repeating-linear-gradient(
+      0deg,
+      transparent 0,
+      transparent 3px,
+      hsl(0 0% 100% / 0.015) 3px,
+      hsl(0 0% 100% / 0.015) 4px
+    );
+    pointer-events: none;
+    border-radius: inherit;
+  }
+
+  .pulse-dot {
+    @apply relative inline-block w-2 h-2 rounded-full bg-primary;
+    box-shadow: 0 0 12px hsl(var(--primary));
+  }
+  .pulse-dot::after {
+    content: '';
+    position: absolute;
+    inset: -4px;
+    border-radius: 50%;
+    border: 1px solid hsl(var(--primary));
+    animation: pulse-ring 1.6s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+  }
+}
+
+@layer utilities {
+  .gradient-text {
+    background: var(--gradient-primary);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+  }
+  .gradient-text-amber {
+    background: var(--gradient-amber);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+  }
+
+  .shadow-neon-lime { box-shadow: var(--shadow-neon-lime); }
+  .shadow-neon-cyan { box-shadow: var(--shadow-neon-cyan); }
+  .shadow-neon-amber { box-shadow: var(--shadow-neon-amber); }
+}
+
+@keyframes pulse-ring {
+  0%   { transform: scale(0.8); opacity: 1; }
+  100% { transform: scale(2.4); opacity: 0; }
+}
+
+@keyframes float-slow {
+  0%, 100% { transform: translateY(0px); }
+  50%      { transform: translateY(-12px); }
+}
+
+@keyframes shimmer {
+  0%   { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+
+@keyframes spark-fly {
+  0%   { transform: translate(0,0) scale(1); opacity: 1; }
+  100% { transform: translate(var(--tx), var(--ty)) scale(0); opacity: 0; }
+}
+
+@keyframes grid-drift {
+  0%   { background-position: 0 0; }
+  100% { background-position: 48px 48px; }
+}
+
+@keyframes neon-sweep {
+  0%   { transform: translateX(-100%); }
+  100% { transform: translateX(200%); }
+}
