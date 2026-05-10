@@ -2,7 +2,7 @@
 // ─── Central API service for AgriChain ───
 // Replace BASE_URL with your actual Render backend URL
 
-const BASE_URL = "https://agrichain-api-tnhz.onrender.com"; // ← CHANGE THIS
+const BASE_URL = import.meta.env.VITE_API_URL || "https://agrichain-api-tnhz.onrender.com"; // ← CHANGE THIS
 
 // ─── Helper ───────────────────────────────
 async function request<T>(
