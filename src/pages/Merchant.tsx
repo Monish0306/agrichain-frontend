@@ -1,46 +1,33 @@
-import { motion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Navbar } from "@/components/Navbar";
 import { MiniMap } from "@/components/MiniMap";
 import { QRBlock } from "@/components/QRBlock";
 import {
-  BarChart3,
-  CheckCircle2,
-  ExternalLink,
-  Filter,
-  History,
-  LayoutDashboard,
-  MapPin,
-  MessageCircle,
-  Package,
-  Route,
-  Search,
-  Send,
-  ShieldCheck,
-  ShoppingBag,
-  Star,
-  Truck,
-  Wallet,
+  BarChart3, CheckCircle2, ExternalLink, Filter,
+  History, LayoutDashboard, MapPin, MessageCircle,
+  Package, Route, Search, Send, ShieldCheck,
+  ShoppingBag, Star, TrendingUp, Truck, Wallet, X,
 } from "lucide-react";
-import { marketplace } from "../api";
+import { marketplace, prices } from "../api";
 import { getAuth, clearAuth } from "../store/auth";
 
-// ── Fallback static data (shown when DB is empty) ──────────────────────────
+// ── Static fallback listings (when DB is empty) ───────────────────────────
 const staticListings = [
-  { crop: "Tomato Grade A",     farmer: "R. Kumar", loc: "Cuddalore, TN",  qty: "2.0 t",  price: 22, trust: 94, days: 6,  grade: "A" },
-  { crop: "Onion Grade B",      farmer: "S. Devi",  loc: "Nashik, MH",     qty: "5.5 t",  price: 18, trust: 88, days: 12, grade: "B" },
-  { crop: "Basmati Rice",       farmer: "H. Singh", loc: "Karnal, HR",     qty: "12 t",   price: 41, trust: 97, days: 21, grade: "A" },
-  { crop: "Groundnut",          farmer: "M. Patel", loc: "Junagadh, GJ",   qty: "3.2 t",  price: 65, trust: 91, days: 9,  grade: "A" },
-  { crop: "Cotton Long Staple", farmer: "K. Reddy", loc: "Warangal, TS",   qty: "8 t",    price: 78, trust: 96, days: 15, grade: "A" },
-  { crop: "Black Gram",         farmer: "P. Naidu", loc: "Guntur, AP",     qty: "1.8 t",  price: 92, trust: 89, days: 4,  grade: "B" },
+  { crop: "Tomato Grade A",     farmer: "R. Kumar", loc: "Cuddalore, TN", qty: "2.0 t",  price: 22, trust: 94, days: 6,  grade: "A" },
+  { crop: "Onion Grade B",      farmer: "S. Devi",  loc: "Nashik, MH",    qty: "5.5 t",  price: 18, trust: 88, days: 12, grade: "B" },
+  { crop: "Basmati Rice",       farmer: "H. Singh", loc: "Karnal, HR",    qty: "12 t",   price: 41, trust: 97, days: 21, grade: "A" },
+  { crop: "Groundnut",          farmer: "M. Patel", loc: "Junagadh, GJ",  qty: "3.2 t",  price: 65, trust: 91, days: 9,  grade: "A" },
+  { crop: "Cotton Long Staple", farmer: "K. Reddy", loc: "Warangal, TS",  qty: "8 t",    price: 78, trust: 96, days: 15, grade: "A" },
+  { crop: "Black Gram",         farmer: "P. Naidu", loc: "Guntur, AP",    qty: "1.8 t",  price: 92, trust: 89, days: 4,  grade: "B" },
 ];
 
 const staticOrders = {
-  Pending:      [{ c: "Tomato · 2t · ₹22",      f: "R. Kumar"  }],
-  Confirmed:    [{ c: "Onion · 5.5t · ₹18",     f: "S. Devi"   }, { c: "Cotton · 8t · ₹78", f: "K. Reddy" }],
-  "In Transit": [{ c: "Basmati · 12t · ₹41",    f: "H. Singh"  }],
-  Delivered:    [{ c: "Groundnut · 3.2t · ₹65", f: "M. Patel"  }],
+  Pending:      [{ c: "Tomato · 2t · ₹22",       f: "R. Kumar" }],
+  Confirmed:    [{ c: "Onion · 5.5t · ₹18",      f: "S. Devi"  }, { c: "Cotton · 8t · ₹78", f: "K. Reddy" }],
+  "In Transit": [{ c: "Basmati · 12t · ₹41",     f: "H. Singh" }],
+  Delivered:    [{ c: "Groundnut · 3.2t · ₹65",  f: "M. Patel" }],
   Completed:    [{ c: "Black Gram · 1.8t · ₹92", f: "P. Naidu" }],
 };
 
@@ -52,121 +39,206 @@ const escrowSteps = [
   { l: "Payment released",   s: "todo"   },
 ];
 
-const sidebar = [
-  { i: LayoutDashboard, l: "Dashboard",       active: true  },
-  { i: ShoppingBag,     l: "Browse Listings", active: false },
-  { i: Package,         l: "My Orders",       active: false },
-  { i: History,         l: "Tx History",      active: false },
-  { i: BarChart3,       l: "Analytics",       active: false },
-];
-
-// ── Group transactions into kanban columns ─────────────────────────────────
+// ── Group live transactions into kanban columns ───────────────────────────
 const groupByStatus = (txList: any[]) => {
   const map: Record<string, { c: string; f: string }[]> = {
     Pending: [], Confirmed: [], "In Transit": [], Delivered: [], Completed: [],
   };
-  txList.forEach((t) => {
-    const s = t.status || "pending";
+  txList.forEach(t => {
     const key =
-      s === "pending"   ? "Pending"     :
-      s === "confirmed" ? "Confirmed"   :
-      s === "completed" ? "Completed"   : "Pending";
+      t.status === "pending"   ? "Pending"   :
+      t.status === "confirmed" ? "Confirmed" :
+      t.status === "completed" ? "Completed" : "Pending";
     if (map[key]) {
       map[key].push({
-        c: `${t.listing_crop_type || "Crop"} · ₹${t.agreed_price || 0}/kg`,
-        f: t.farmer_name || t.farmer_id?.slice(0, 8) || "Farmer",
+        c: `${t.listing_crop_type || "Crop"} · ₹${t.agreed_price || 0}/kg · ${t.quantity_kg || 0}kg`,
+        f: t.farmer_name || "Farmer",
       });
     }
   });
   return map;
 };
 
-const MerchantPortal = () => {
-  const navigate   = useNavigate();
-  const user       = getAuth();
+// ── Tab type ──────────────────────────────────────────────────────────────
+type Tab = "dashboard" | "listings" | "orders" | "history" | "analytics";
 
-  // ── Auth guard ────────────────────────────────────────────────────────────
+// ─────────────────────────────────────────────────────────────────────────
+const MerchantPortal = () => {
+  const navigate = useNavigate();
+  const user     = getAuth();
+
+  // ── Auth guard ────────────────────────────────────────────────────────
   useEffect(() => {
     if (!user || user.role !== "merchant") navigate("/login");
   }, []);
 
-  // ── State ─────────────────────────────────────────────────────────────────
+  // ── Active tab ────────────────────────────────────────────────────────
+  const [activeTab, setActiveTab] = useState<Tab>("dashboard");
+
+  // ── Listings ──────────────────────────────────────────────────────────
   const [liveListings,  setLiveListings]  = useState<any[]>([]);
-  const [myOrders,      setMyOrders]      = useState<any[]>([]);
   const [listingsReady, setListingsReady] = useState(false);
-  const [orderLoading,  setOrderLoading]  = useState<string | null>(null);
-  const [orderSuccess,  setOrderSuccess]  = useState<string | null>(null);
 
-  // Merchant KPIs derived from live orders
-  const activeOrders     = myOrders.filter(t => t.status === "pending" || t.status === "confirmed").length;
-  const completedOrders  = myOrders.filter(t => t.status === "completed");
-  const totalVolume      = completedOrders.reduce((s, t) => s + (t.agreed_price || 0) * (t.quantity_kg || 0), 0);
-  const kanbanOrders     = myOrders.length > 0 ? groupByStatus(myOrders) : staticOrders;
+  // ── Search & filters (all working) ───────────────────────────────────
+  const [searchQuery, setSearchQuery] = useState("");
+  const [filterCrop,  setFilterCrop]  = useState("All");
+  const [filterGrade, setFilterGrade] = useState("All");
+  const [filterState, setFilterState] = useState("All");
 
-  // ── Fetch on mount ────────────────────────────────────────────────────────
+  // ── Orders ────────────────────────────────────────────────────────────
+  const [myOrders,    setMyOrders]    = useState<any[]>([]);
+  const [confirmingId,setConfirmingId]= useState<string | null>(null);
+
+  // ── Inline order form (NO prompt()) ──────────────────────────────────
+  const [orderFormId,  setOrderFormId]  = useState<string | null>(null);
+  const [orderQty,     setOrderQty]     = useState("");
+  const [orderPrice,   setOrderPrice]   = useState("");
+  const [orderLoading, setOrderLoading] = useState(false);
+  const [orderMsg,     setOrderMsg]     = useState("");
+
+  // ── Live price check ──────────────────────────────────────────────────
+  const [commodities,       setCommodities]       = useState<string[]>([]);
+  const [selectedCommodity, setSelectedCommodity] = useState("tomato");
+  const [priceData,         setPriceData]         = useState<any>(null);
+
+  // ── Route optimizer (LIVE OSRM) ───────────────────────────────────────
+  const [showRouteForm, setShowRouteForm] = useState(false);
+  const [routeForm,     setRouteForm]     = useState({
+    origin_lat: 12.97, origin_lon: 77.59,
+    dest_lat:   13.08, dest_lon:   80.27,
+    dest_name:  "Chennai APMC",
+  });
+  const [routeResult,  setRouteResult]  = useState<any>(null);
+  const [routeLoading, setRouteLoading] = useState(false);
+
+  // ── Derived values ────────────────────────────────────────────────────
+  const isLive          = listingsReady && liveListings.length > 0;
+  const allListings     = isLive ? liveListings : staticListings;
+  const activeOrders    = myOrders.filter(t => ["pending","confirmed"].includes(t.status)).length;
+  const completedOrders = myOrders.filter(t => t.status === "completed");
+  const totalVolume     = completedOrders.reduce((s,t) => s+(t.agreed_price||0)*(t.quantity_kg||0), 0);
+  const kanbanOrders    = myOrders.length > 0 ? groupByStatus(myOrders) : staticOrders;
+
+  // ── Filtered listings (search + filters all work) ─────────────────────
+  const filteredListings = allListings.filter((l: any) => {
+    const crop   = (l.crop_type || l.crop  || "").toLowerCase();
+    const state  = (l.state     || l.loc   || "").toLowerCase();
+    const grade  = (l.quality_grade || l.grade || "A");
+    const search = searchQuery.toLowerCase();
+
+    const matchSearch = !search
+      || crop.includes(search)
+      || (l.farmer_name || l.farmer || "").toLowerCase().includes(search)
+      || state.includes(search);
+    const matchCrop  = filterCrop  === "All" || crop.includes(filterCrop.toLowerCase());
+    const matchGrade = filterGrade === "All" || grade === filterGrade;
+    const matchState = filterState === "All" || state.includes(filterState.toLowerCase());
+
+    return matchSearch && matchCrop && matchGrade && matchState;
+  });
+
+  const anyFilterActive = filterCrop !== "All" || filterGrade !== "All" || filterState !== "All" || searchQuery !== "";
+
+  // ── Fetch on mount ────────────────────────────────────────────────────
   useEffect(() => {
     marketplace.getListings()
-      .then((r: any) => { setLiveListings(r.listings || []); setListingsReady(true); })
+      .then((r: any) => { setLiveListings(r.listings||[]); setListingsReady(true); })
       .catch(() => setListingsReady(true));
 
     marketplace.myOrders()
-      .then((r: any) => setMyOrders(r.transactions || []))
+      .then((r: any) => setMyOrders(r.transactions||[]))
       .catch(console.error);
+
+    prices.getCommodities()
+      .then((r: any) => {
+        const list: string[] = r.commodities || [];
+        setCommodities(list);
+        if (list.length > 0) setSelectedCommodity(list[0]);
+      }).catch(console.error);
   }, []);
 
-  // ── Place order ───────────────────────────────────────────────────────────
-  const handlePlaceOrder = async (listingId: string, askingPrice: number, cropName: string) => {
-    const qtyStr = prompt(`Enter quantity in kg for ${cropName} at ₹${askingPrice}/kg:`);
-    const qty    = parseFloat(qtyStr || "0");
-    if (!qty || qty <= 0) return;
+  // ── Fetch price when commodity changes ────────────────────────────────
+  useEffect(() => {
+    if (!selectedCommodity) return;
+    prices.predictPrice(selectedCommodity, 7).then(setPriceData).catch(console.error);
+  }, [selectedCommodity]);
 
-    setOrderLoading(listingId);
-    try {
-      await marketplace.placeOrder(listingId, qty, askingPrice);
-      setOrderSuccess(listingId);
-      const updated = await marketplace.myOrders() as any;
-      setMyOrders(updated.transactions || []);
-      alert(`✅ Order placed! ${qty}kg of ${cropName} at ₹${askingPrice}/kg`);
-    } catch (e: any) {
-      alert("❌ Order failed: " + e.message);
-    } finally {
-      setOrderLoading(null);
+  // ── Place order (INLINE form — no prompt()) ───────────────────────────
+  const handlePlaceOrder = async (listingId: string) => {
+    const qty   = parseFloat(orderQty);
+    const price = parseFloat(orderPrice);
+    if (!qty || qty <= 0 || !price || price <= 0) {
+      setOrderMsg("❌ Enter valid quantity and price"); return;
     }
+    setOrderLoading(true); setOrderMsg("");
+    try {
+      await marketplace.placeOrder(listingId, qty, price);
+      setOrderMsg("✅ Order placed successfully!");
+      setOrderFormId(null); setOrderQty(""); setOrderPrice("");
+      const r: any = await marketplace.myOrders();
+      setMyOrders(r.transactions || []);
+    } catch (e: any) { setOrderMsg("❌ " + e.message); }
+    finally { setOrderLoading(false); }
   };
 
-  // ── Confirm transaction (for merchant side) ───────────────────────────────
+  // ── Confirm transaction ────────────────────────────────────────────────
   const handleConfirmTx = async (txId: string) => {
+    setConfirmingId(txId);
     try {
       await marketplace.confirmTransaction(txId);
-      const updated = await marketplace.myOrders() as any;
-      setMyOrders(updated.transactions || []);
-      alert("✅ Transaction confirmed!");
-    } catch (e: any) {
-      alert("❌ Confirm failed: " + e.message);
-    }
+      const r: any = await marketplace.myOrders();
+      setMyOrders(r.transactions || []);
+    } catch (e: any) { alert("❌ Confirm failed: " + e.message); }
+    finally { setConfirmingId(null); }
+  };
+
+  // ── Route (LIVE OSRM) ─────────────────────────────────────────────────
+  const handleGetRoute = async () => {
+    setRouteLoading(true); setRouteResult(null);
+    try {
+      const r: any = await marketplace.getRoute(
+        routeForm.origin_lat, routeForm.origin_lon,
+        routeForm.dest_lat,   routeForm.dest_lon
+      );
+      setRouteResult(r);
+    } catch (e: any) { setRouteResult({ error: e.message }); }
+    finally { setRouteLoading(false); }
   };
 
   const handleLogout = () => { clearAuth(); navigate("/login"); };
 
-  // ── Decide which listings to display ─────────────────────────────────────
-  const displayListings = listingsReady && liveListings.length > 0 ? liveListings : staticListings;
-  const isLive          = listingsReady && liveListings.length > 0;
+  const sidebarNav: { icon: any; label: string; tab: Tab }[] = [
+    { icon: LayoutDashboard, label: "Dashboard",       tab: "dashboard" },
+    { icon: ShoppingBag,     label: "Browse Listings", tab: "listings"  },
+    { icon: Package,         label: "My Orders",       tab: "orders"    },
+    { icon: History,         label: "Tx History",      tab: "history"   },
+    { icon: BarChart3,       label: "Analytics",       tab: "analytics" },
+  ];
 
+  // ── Live escrow data from first order ────────────────────────────────
+  const latestOrder     = myOrders[0];
+  const escrowLocked    = latestOrder
+    ? `₹${((latestOrder.agreed_price||0)*(latestOrder.quantity_kg||0)).toLocaleString()}`
+    : "₹0";
+  const latestStatus    = latestOrder?.status?.toUpperCase() || "No orders yet";
+
+  // ─────────────────────────────────────────────────────────────────────
   return (
     <div className="min-h-screen bg-background text-foreground">
       <Navbar />
 
-      <div className="container mx-auto px-6 pt-28 pb-16">
+      <div className="container mx-auto px-4 md:px-6 pt-28 pb-16">
 
-        {/* ── Header ─────────────────────────────────────────────────────── */}
+        {/* ━━ HEADER ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */}
         <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.6 }}
+          initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5 }}
           className="flex flex-wrap items-center justify-between gap-4 mb-8"
         >
           <div>
-            <div className="font-mono text-xs text-secondary uppercase tracking-widest mb-2">Merchant Portal</div>
+            <div className="font-mono text-xs text-secondary uppercase tracking-widest mb-2">
+              Merchant Portal
+            </div>
             <h1 className="font-display text-4xl font-bold">
               <span className="gradient-text">{user?.name || "Merchant"}</span>
             </h1>
@@ -176,38 +248,45 @@ const MerchantPortal = () => {
               </span>
               <span>·</span>
               <span className="flex items-center gap-1.5">
-                <Wallet className="w-4 h-4 text-secondary" /> {user?.user_id?.slice(0, 10) || "0x71C…b3aF"}
+                <Wallet className="w-4 h-4 text-secondary" />
+                {user?.user_id?.slice(0,12) || "0x71C…b3aF"}
               </span>
             </div>
           </div>
 
           <div className="flex items-center gap-3">
-            {/* Search bar */}
+            {/* WORKING search bar with clear button */}
             <div className="flex items-center gap-2 px-4 py-2 rounded-full border border-border bg-card/50">
-              <Search className="w-4 h-4 text-muted-foreground" />
+              <Search className="w-4 h-4 text-muted-foreground flex-shrink-0" />
               <input
-                className="bg-transparent text-sm outline-none placeholder:text-muted-foreground w-48"
+                value={searchQuery}
+                onChange={e => setSearchQuery(e.target.value)}
+                className="bg-transparent text-sm outline-none placeholder:text-muted-foreground w-44"
                 placeholder="Search crops, farmers…"
               />
+              {searchQuery && (
+                <button onClick={() => setSearchQuery("")}>
+                  <X className="w-3 h-3 text-muted-foreground hover:text-foreground" />
+                </button>
+              )}
             </div>
-            {/* Logout */}
             <button
               onClick={handleLogout}
-              className="px-4 py-2 rounded-full border border-destructive/40 bg-destructive/10 text-destructive text-sm font-mono hover:bg-destructive hover:text-white transition-colors"
+              className="px-4 py-2 rounded-full border border-destructive/40 bg-destructive/10 text-destructive text-sm hover:bg-destructive hover:text-white transition-colors"
             >
               Logout
             </button>
           </div>
         </motion.div>
 
-        {/* ── KPI cards ──────────────────────────────────────────────────── */}
+        {/* ━━ KPI CARDS (LIVE data) ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
           {[
-            { l: "Active orders",      v: activeOrders > 0   ? String(activeOrders) : "0",    c: "primary"   },
-            { l: "Trade volume · MTD", v: totalVolume > 0     ? `₹${(totalVolume/100000).toFixed(1)}L` : "₹0", c: "secondary" },
-            { l: "Total listings",     v: String(liveListings.length || 0),                   c: "accent"    },
-            { l: "Disputes",           v: "0",                                                 c: "primary"   },
-          ].map((k) => (
+            { l: "Active orders",     v: String(activeOrders),                                            c: "primary"   },
+            { l: "Trade vol · total", v: totalVolume>0 ? `₹${(totalVolume/100000).toFixed(1)}L` : "₹0",  c: "secondary" },
+            { l: "Live listings",     v: String(liveListings.length),                                     c: "accent"    },
+            { l: "Completed trades",  v: String(completedOrders.length),                                  c: "primary"   },
+          ].map(k => (
             <div key={k.l} className="neon-card p-5">
               <div className="text-xs text-muted-foreground uppercase tracking-wider">{k.l}</div>
               <div className={`font-display text-3xl font-bold mt-2 text-${k.c}`}>{k.v}</div>
@@ -217,357 +296,683 @@ const MerchantPortal = () => {
 
         <div className="grid lg:grid-cols-[220px_1fr] gap-6">
 
-          {/* ── Sidebar ──────────────────────────────────────────────────── */}
+          {/* ━━ SIDEBAR — WORKING tab navigation + filters ━━━━━━━━━━━━━ */}
           <motion.aside
-            initial={{ opacity: 0, x: -20 }}
-            animate={{ opacity: 1, x: 0 }}
+            initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }}
             transition={{ delay: 0.15 }}
             className="neon-card p-3 h-fit sticky top-24"
           >
-            {sidebar.map((n) => (
+            {/* Working tab buttons */}
+            {sidebarNav.map(n => (
               <button
-                key={n.l}
+                key={n.tab}
+                onClick={() => setActiveTab(n.tab)}
                 className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition-colors ${
-                  n.active
+                  activeTab === n.tab
                     ? "bg-secondary/15 text-secondary border border-secondary/30"
                     : "text-muted-foreground hover:text-foreground hover:bg-muted/30"
                 }`}
               >
-                <n.i className="w-4 h-4" />
-                {n.l}
+                <n.icon className="w-4 h-4" />
+                {n.label}
               </button>
             ))}
 
+            {/* WORKING filters with state */}
             <div className="mt-4 pt-4 border-t border-border">
-              <div className="text-[10px] font-mono text-muted-foreground uppercase tracking-widest mb-3 px-3">Filters</div>
-              {[
-                { l: "Crop",    o: ["All", "Tomato", "Rice", "Cotton"] },
-                { l: "Quality", o: ["A", "B", "C"] },
-                { l: "State",   o: ["TN", "MH", "GJ", "TS"] },
-                { l: "Price",   o: ["<₹20", "₹20–50", "₹50+"] },
-              ].map((g) => (
-                <div key={g.l} className="mb-4 px-3">
-                  <div className="text-[10px] text-muted-foreground uppercase tracking-wider mb-1.5">{g.l}</div>
-                  <div className="flex flex-wrap gap-1">
-                    {g.o.map((o) => (
-                      <button
-                        key={o}
-                        className="text-[10px] px-2 py-0.5 rounded-full border border-border hover:border-secondary hover:text-secondary transition-colors"
-                      >
-                        {o}
-                      </button>
-                    ))}
-                  </div>
+              <div className="flex items-center gap-1 mb-3 px-3">
+                <Filter className="w-3 h-3 text-muted-foreground" />
+                <div className="text-[10px] font-mono text-muted-foreground uppercase tracking-widest">
+                  Filters {anyFilterActive && <span className="text-accent">· Active</span>}
                 </div>
-              ))}
+              </div>
+
+              {/* Crop filter */}
+              <div className="mb-3 px-3">
+                <div className="text-[10px] text-muted-foreground uppercase tracking-wider mb-1.5">Crop</div>
+                <div className="flex flex-wrap gap-1">
+                  {["All","Tomato","Rice","Cotton","Onion","Groundnut"].map(o => (
+                    <button
+                      key={o}
+                      onClick={() => setFilterCrop(o)}
+                      className={`text-[10px] px-2 py-0.5 rounded-full border transition-colors ${
+                        filterCrop === o
+                          ? "border-secondary bg-secondary/15 text-secondary"
+                          : "border-border hover:border-secondary hover:text-secondary"
+                      }`}
+                    >
+                      {o}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Grade filter */}
+              <div className="mb-3 px-3">
+                <div className="text-[10px] text-muted-foreground uppercase tracking-wider mb-1.5">Quality</div>
+                <div className="flex flex-wrap gap-1">
+                  {["All","A","B","C"].map(o => (
+                    <button
+                      key={o}
+                      onClick={() => setFilterGrade(o)}
+                      className={`text-[10px] px-2 py-0.5 rounded-full border transition-colors ${
+                        filterGrade === o
+                          ? "border-secondary bg-secondary/15 text-secondary"
+                          : "border-border hover:border-secondary hover:text-secondary"
+                      }`}
+                    >
+                      {o}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* State filter */}
+              <div className="mb-3 px-3">
+                <div className="text-[10px] text-muted-foreground uppercase tracking-wider mb-1.5">State</div>
+                <div className="flex flex-wrap gap-1">
+                  {["All","TN","MH","GJ","TS","AP","HR"].map(o => (
+                    <button
+                      key={o}
+                      onClick={() => setFilterState(o)}
+                      className={`text-[10px] px-2 py-0.5 rounded-full border transition-colors ${
+                        filterState === o
+                          ? "border-secondary bg-secondary/15 text-secondary"
+                          : "border-border hover:border-secondary hover:text-secondary"
+                      }`}
+                    >
+                      {o}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Clear all filters button */}
+              {anyFilterActive && (
+                <button
+                  onClick={() => {
+                    setFilterCrop("All"); setFilterGrade("All");
+                    setFilterState("All"); setSearchQuery("");
+                  }}
+                  className="w-full mt-1 text-[10px] text-destructive border border-destructive/30 rounded-lg py-1.5 hover:bg-destructive/10 transition-colors"
+                >
+                  Clear all filters
+                </button>
+              )}
             </div>
           </motion.aside>
 
-          {/* ── Main content ─────────────────────────────────────────────── */}
+          {/* ━━ MAIN CONTENT ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */}
           <div>
 
-            {/* Live / Demo badge */}
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="font-display text-2xl font-bold flex items-center gap-2">
-                Active listings
-                <span className="text-xs font-mono text-muted-foreground">
-                  · {displayListings.length} {isLive ? "farms (live)" : "farms (demo)"}
-                </span>
-              </h2>
-              {!isLive && listingsReady && (
-                <span className="text-[10px] font-mono text-accent border border-accent/30 bg-accent/10 px-2 py-1 rounded-full">
-                  Demo data — log in as Farmer to create real listings
-                </span>
-              )}
-            </div>
+            {/* ── DASHBOARD + LISTINGS tab ────────────────────────────── */}
+            {(activeTab === "dashboard" || activeTab === "listings") && (
+              <>
+                {/* Header row */}
+                <div className="flex items-center justify-between mb-4">
+                  <h2 className="font-display text-2xl font-bold flex items-center gap-2">
+                    Active listings
+                    <span className="text-xs font-mono text-muted-foreground">
+                      · {filteredListings.length} {isLive ? "(live)" : "(demo)"}
+                      {anyFilterActive && " · filtered"}
+                    </span>
+                  </h2>
+                  {!isLive && listingsReady && (
+                    <span className="text-[10px] font-mono text-accent border border-accent/30 bg-accent/10 px-2 py-1 rounded-full">
+                      Demo — login as Farmer to see real listings
+                    </span>
+                  )}
+                </div>
 
-            {/* ── Listings grid ──────────────────────────────────────────── */}
-            <div className="grid sm:grid-cols-2 xl:grid-cols-3 gap-4">
-              {displayListings.map((l: any, i: number) => {
-                const isReal    = !!l.id;
-                const cropName  = l.crop_type || l.crop || "Crop";
-                const grade     = l.quality_grade || l.grade || "A";
-                const price     = l.asking_price  || l.price || 0;
-                const qty       = l.quantity_kg   ? `${l.quantity_kg}kg` : l.qty;
-                const location  = l.district      ? `${l.district}, ${l.state}` : l.loc;
-                const farmerN   = l.farmer_name   || l.farmer || "Farmer";
-                const trust     = l.trust          || 90;
-
-                return (
-                  <motion.div
-                    key={l.id || l.crop}
-                    initial={{ opacity: 0, y: 20 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: i * 0.05 }}
-                    className="neon-card p-4 group flex flex-col"
-                  >
-                    {/* Mini map */}
-                    <div className="h-20 rounded-lg overflow-hidden border border-border mb-3">
-                      <MiniMap label={location.split(",")[0]} />
-                    </div>
-
-                    <div className="flex items-start justify-between mb-2">
-                      <span className={`text-[10px] px-2 py-0.5 rounded-full font-mono border ${
-                        grade === "A"
-                          ? "bg-primary/10 text-primary border-primary/30"
-                          : "bg-secondary/10 text-secondary border-secondary/30"
-                      }`}>
-                        GRADE {grade}
-                      </span>
-                      <div className="flex items-center gap-1 text-xs">
-                        <Star className="w-3 h-3 fill-accent text-accent" />
-                        <span className="font-mono text-accent">{trust}</span>
+                {/* LIVE price check bar */}
+                {commodities.length > 0 && (
+                  <div className="mb-4 neon-card p-4 flex items-center gap-3 flex-wrap">
+                    <TrendingUp className="w-4 h-4 text-secondary flex-shrink-0" />
+                    <span className="text-xs font-mono text-muted-foreground uppercase">
+                      Live price check:
+                    </span>
+                    <select
+                      value={selectedCommodity}
+                      onChange={e => setSelectedCommodity(e.target.value)}
+                      className="px-3 py-1 rounded-lg bg-muted/30 border border-border text-sm outline-none"
+                    >
+                      {commodities.map(c => <option key={c} value={c}>{c}</option>)}
+                    </select>
+                    {priceData && (
+                      <div className="flex items-center gap-3 text-sm">
+                        <span className="font-display font-bold gradient-text">
+                          ₹{priceData.current_price}/kg today
+                        </span>
+                        {priceData.sell_recommendation && (
+                          <span className={`text-xs px-2 py-0.5 rounded-full border font-mono ${
+                            priceData.sell_recommendation.action === "WAIT"
+                              ? "border-accent/40 text-accent bg-accent/10"
+                              : "border-primary/40 text-primary bg-primary/10"
+                          }`}>
+                            Farmer advised: {priceData.sell_recommendation.action}
+                          </span>
+                        )}
                       </div>
-                    </div>
+                    )}
+                  </div>
+                )}
 
-                    <div className="font-display text-base font-bold mb-1">{cropName}</div>
-                    <div className="text-[11px] text-muted-foreground flex items-center gap-1 mb-3">
-                      <MapPin className="w-3 h-3" /> {location}
-                    </div>
+                {/* Listings grid */}
+                {filteredListings.length === 0 ? (
+                  <div className="py-12 text-center border border-dashed border-border rounded-xl text-sm text-muted-foreground">
+                    No listings match your filters.{" "}
+                    <button onClick={() => { setFilterCrop("All"); setFilterGrade("All"); setFilterState("All"); setSearchQuery(""); }} className="text-accent underline">
+                      Clear filters
+                    </button>
+                  </div>
+                ) : (
+                  <div className="grid sm:grid-cols-2 xl:grid-cols-3 gap-4">
+                    {filteredListings.map((l: any, i: number) => {
+                      const isReal   = !!l.id;
+                      const cropName = l.crop_type || l.crop || "Crop";
+                      const grade    = l.quality_grade || l.grade || "A";
+                      const price    = l.asking_price  || l.price || 0;
+                      const qty      = l.quantity_kg ? `${l.quantity_kg}kg` : l.qty;
+                      const location = l.district ? `${l.district}, ${l.state}` : l.loc;
+                      const farmerN  = l.farmer_name || l.farmer || "Farmer";
+                      const trust    = l.trust || 90;
 
-                    <div className="flex items-end justify-between mb-3">
-                      <div>
-                        <div className="font-display text-xl font-bold gradient-text">₹{price}</div>
-                        <div className="text-[10px] text-muted-foreground">/kg · {qty}</div>
-                      </div>
-                      {isReal ? (
-                        <button
-                          onClick={() => handlePlaceOrder(l.id, price, cropName)}
-                          disabled={orderLoading === l.id}
-                          className="text-xs px-3 py-1.5 rounded-full bg-secondary/15 text-secondary border border-secondary/30 hover:bg-secondary hover:text-secondary-foreground transition-colors disabled:opacity-50"
+                      return (
+                        <motion.div
+                          key={l.id || l.crop}
+                          initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}
+                          transition={{ delay: i * 0.04 }}
+                          className="neon-card p-4 flex flex-col"
                         >
-                          {orderLoading === l.id  ? "Placing…"   :
-                           orderSuccess  === l.id  ? "✓ Ordered"  : "Place Order"}
+                          <div className="h-20 rounded-lg overflow-hidden border border-border mb-3">
+                            <MiniMap label={location.split(",")[0]} />
+                          </div>
+
+                          <div className="flex items-start justify-between mb-2">
+                            <span className={`text-[10px] px-2 py-0.5 rounded-full font-mono border ${
+                              grade === "A"
+                                ? "bg-primary/10 text-primary border-primary/30"
+                                : "bg-secondary/10 text-secondary border-secondary/30"
+                            }`}>
+                              GRADE {grade}
+                            </span>
+                            <div className="flex items-center gap-1 text-xs">
+                              <Star className="w-3 h-3 fill-accent text-accent" />
+                              <span className="font-mono text-accent">{trust}</span>
+                            </div>
+                          </div>
+
+                          <div className="font-display text-base font-bold mb-1">{cropName}</div>
+                          <div className="text-[11px] text-muted-foreground flex items-center gap-1 mb-3">
+                            <MapPin className="w-3 h-3" /> {location}
+                          </div>
+
+                          <div className="flex items-end justify-between mb-2">
+                            <div>
+                              <div className="font-display text-xl font-bold gradient-text">₹{price}</div>
+                              <div className="text-[10px] text-muted-foreground">/kg · {qty}</div>
+                            </div>
+                            {isReal ? (
+                              <button
+                                onClick={() => {
+                                  setOrderFormId(orderFormId === l.id ? null : l.id);
+                                  setOrderPrice(String(price));
+                                  setOrderMsg("");
+                                }}
+                                className="text-xs px-3 py-1.5 rounded-full bg-secondary/15 text-secondary border border-secondary/30 hover:bg-secondary hover:text-secondary-foreground transition-colors"
+                              >
+                                {orderFormId === l.id ? "Cancel" : "Place Order"}
+                              </button>
+                            ) : (
+                              <span className="text-[10px] text-muted-foreground font-mono">Demo</span>
+                            )}
+                          </div>
+
+                          {/* INLINE order form — NO prompt() */}
+                          <AnimatePresence>
+                            {orderFormId === l.id && (
+                              <motion.div
+                                initial={{ opacity: 0, height: 0 }}
+                                animate={{ opacity: 1, height: "auto" }}
+                                exit={{ opacity: 0, height: 0 }}
+                                className="overflow-hidden"
+                              >
+                                <div className="border-t border-border pt-3 space-y-2">
+                                  <div className="grid grid-cols-2 gap-2">
+                                    <div>
+                                      <div className="text-[10px] text-muted-foreground uppercase mb-1">
+                                        Quantity (kg)
+                                      </div>
+                                      <input
+                                        type="number"
+                                        value={orderQty}
+                                        onChange={e => setOrderQty(e.target.value)}
+                                        placeholder="e.g. 500"
+                                        className="w-full px-2 py-1.5 rounded-lg bg-muted/30 border border-border text-xs outline-none focus:border-secondary"
+                                      />
+                                    </div>
+                                    <div>
+                                      <div className="text-[10px] text-muted-foreground uppercase mb-1">
+                                        Offer ₹/kg
+                                      </div>
+                                      <input
+                                        type="number"
+                                        value={orderPrice}
+                                        onChange={e => setOrderPrice(e.target.value)}
+                                        placeholder={String(price)}
+                                        className="w-full px-2 py-1.5 rounded-lg bg-muted/30 border border-border text-xs outline-none focus:border-secondary"
+                                      />
+                                    </div>
+                                  </div>
+                                  {orderQty && orderPrice && (
+                                    <div className="text-[10px] text-muted-foreground">
+                                      Total: ₹{(parseFloat(orderQty||"0") * parseFloat(orderPrice||"0")).toLocaleString()}
+                                    </div>
+                                  )}
+                                  <button
+                                    onClick={() => handlePlaceOrder(l.id)}
+                                    disabled={orderLoading}
+                                    className="w-full py-1.5 rounded-lg bg-secondary text-secondary-foreground text-xs font-semibold disabled:opacity-50 hover:opacity-90"
+                                  >
+                                    {orderLoading ? "Placing…" : "✅ Confirm Order"}
+                                  </button>
+                                  {orderMsg && (
+                                    <p className={`text-xs ${orderMsg.startsWith("✅") ? "text-primary" : "text-destructive"}`}>
+                                      {orderMsg}
+                                    </p>
+                                  )}
+                                </div>
+                              </motion.div>
+                            )}
+                          </AnimatePresence>
+
+                          <div className="pt-3 border-t border-border flex items-center justify-between text-[10px] font-mono text-muted-foreground mt-auto">
+                            <span>{farmerN}</span>
+                            <ExternalLink className="w-3 h-3 hover:text-primary cursor-pointer" />
+                          </div>
+                        </motion.div>
+                      );
+                    })}
+                  </div>
+                )}
+
+                {/* Dashboard-only sections */}
+                {activeTab === "dashboard" && (
+                  <>
+                    {/* My recent orders */}
+                    {myOrders.length > 0 && (
+                      <div className="mt-10">
+                        <h2 className="font-display text-xl font-bold mb-4 flex items-center gap-2">
+                          My recent orders
+                          <span className="text-xs font-mono text-muted-foreground">
+                            · {myOrders.length} total
+                          </span>
+                        </h2>
+                        <div className="space-y-3">
+                          {myOrders.slice(0, 4).map((t: any) => (
+                            <div
+                              key={t.transaction_id||t.id}
+                              className="neon-card p-4 flex items-center justify-between gap-4"
+                            >
+                              <div className="flex-1 min-w-0">
+                                <div className="font-semibold text-sm">
+                                  {t.listing_crop_type||"Crop"} · {t.quantity_kg}kg · ₹{t.agreed_price}/kg
+                                </div>
+                                <div className="text-[11px] text-muted-foreground font-mono mt-0.5">
+                                  Total: ₹{((t.agreed_price||0)*(t.quantity_kg||0)).toLocaleString()}
+                                </div>
+                              </div>
+                              <div className={`text-[10px] px-2 py-0.5 rounded-full border font-mono flex-shrink-0 ${
+                                t.status==="completed" ? "border-primary/40 text-primary bg-primary/10"       :
+                                t.status==="confirmed" ? "border-secondary/40 text-secondary bg-secondary/10" :
+                                                         "border-accent/40 text-accent bg-accent/10"
+                              }`}>
+                                {t.status?.toUpperCase()}
+                              </div>
+                              {(t.status==="pending"||t.status==="confirmed") && (
+                                <button
+                                  onClick={() => handleConfirmTx(t.transaction_id||t.id)}
+                                  disabled={confirmingId===(t.transaction_id||t.id)}
+                                  className="text-xs px-3 py-1.5 rounded-full bg-primary/10 text-primary border border-primary/30 hover:bg-primary hover:text-primary-foreground transition-colors disabled:opacity-50 flex-shrink-0"
+                                >
+                                  {confirmingId===(t.transaction_id||t.id) ? "…" : "Confirm"}
+                                </button>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Escrow timeline — LIVE data */}
+                    <div className="grid lg:grid-cols-3 gap-4 mt-8">
+                      <motion.div
+                        initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}
+                        transition={{ delay: 0.4 }}
+                        className="neon-card p-5 lg:col-span-2"
+                      >
+                        <div className="flex items-center gap-2 mb-4">
+                          <ShieldCheck className="w-4 h-4 text-primary" />
+                          <span className="font-display font-bold">TradeEscrow.sol · Smart Contract</span>
+                        </div>
+
+                        <div className="relative grid grid-cols-5 gap-2">
+                          <div className="absolute top-4 left-[10%] right-[10%] h-px bg-border" />
+                          <motion.div
+                            initial={{ width: 0 }} animate={{ width: "40%" }}
+                            transition={{ duration: 1.2, delay: 0.6 }}
+                            className="absolute top-4 left-[10%] h-px bg-gradient-to-r from-primary to-secondary shadow-neon-lime"
+                          />
+                          {escrowSteps.map((step, i) => (
+                            <div key={step.l} className="relative flex flex-col items-center text-center">
+                              <div className={`relative z-10 w-8 h-8 rounded-full flex items-center justify-center mb-2 ${
+                                step.s==="done"   ? "bg-primary text-primary-foreground shadow-neon-lime"     :
+                                step.s==="active" ? "bg-secondary text-secondary-foreground shadow-neon-cyan" :
+                                                    "bg-muted border border-border text-muted-foreground"
+                              }`}>
+                                {step.s==="done"
+                                  ? <CheckCircle2 className="w-4 h-4" />
+                                  : <span className="text-xs font-mono">{i+1}</span>}
+                              </div>
+                              <div className={`text-[10px] leading-tight ${step.s==="todo" ? "text-muted-foreground" : "text-foreground"}`}>
+                                {step.l}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+
+                        {/* LIVE escrow data */}
+                        <div className="mt-5 pt-5 border-t border-border grid grid-cols-3 gap-3 text-xs">
+                          <div>
+                            <div className="text-muted-foreground uppercase text-[10px]">Locked</div>
+                            <div className="font-display text-lg font-bold gradient-text">{escrowLocked}</div>
+                          </div>
+                          <div>
+                            <div className="text-muted-foreground uppercase text-[10px]">Latest status</div>
+                            <div className="font-mono text-primary text-[11px]">{latestStatus}</div>
+                          </div>
+                          <div>
+                            <div className="text-muted-foreground uppercase text-[10px]">Network</div>
+                            <div className="font-mono text-secondary text-[11px]">Sepolia Testnet</div>
+                          </div>
+                        </div>
+                      </motion.div>
+
+                      {/* QR Provenance */}
+                      <motion.div
+                        initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}
+                        transition={{ delay: 0.5 }}
+                        className="neon-card p-5 flex flex-col items-center text-center"
+                      >
+                        <div className="text-[10px] font-mono text-primary uppercase tracking-widest mb-2">
+                          Crop provenance
+                        </div>
+                        <QRBlock size={120} />
+                        <div className="text-xs text-muted-foreground mt-3">CropListing.sol</div>
+                        <a className="mt-2 text-[11px] text-primary flex items-center gap-1 hover:underline">
+                          Verify on Etherscan <ExternalLink className="w-3 h-3" />
+                        </a>
+                      </motion.div>
+                    </div>
+
+                    {/* Route optimizer (LIVE) + Chat */}
+                    <div className="grid lg:grid-cols-2 gap-4 mt-4">
+
+                      {/* LIVE OSRM route */}
+                      <motion.div
+                        initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}
+                        transition={{ delay: 0.55 }}
+                        className="neon-card p-5"
+                      >
+                        <button
+                          className="w-full flex items-center justify-between mb-3"
+                          onClick={() => setShowRouteForm(!showRouteForm)}
+                        >
+                          <div className="flex items-center gap-2">
+                            <Route className="w-4 h-4 text-secondary" />
+                            <span className="font-display font-bold">
+                              Route · OSRM optimized
+                              {routeResult && !routeResult.error && (
+                                <span className="text-sm text-muted-foreground font-normal ml-2">
+                                  · {routeResult.distance_km}km · {routeResult.duration_minutes}min
+                                </span>
+                              )}
+                            </span>
+                          </div>
+                          <span className="text-muted-foreground text-xs">
+                            {showRouteForm ? "▲" : "▼"}
+                          </span>
                         </button>
-                      ) : (
-                        <span className="text-[10px] text-muted-foreground font-mono">Demo</span>
-                      )}
+
+                        <AnimatePresence>
+                          {showRouteForm && (
+                            <motion.div
+                              initial={{ opacity: 0, height: 0 }}
+                              animate={{ opacity: 1, height: "auto" }}
+                              exit={{ opacity: 0, height: 0 }}
+                              className="overflow-hidden"
+                            >
+                              <div className="grid grid-cols-2 gap-2 mb-2">
+                                {[
+                                  { l: "Farm Lat",  k: "origin_lat", v: routeForm.origin_lat },
+                                  { l: "Farm Lon",  k: "origin_lon", v: routeForm.origin_lon },
+                                  { l: "Mandi Lat", k: "dest_lat",   v: routeForm.dest_lat   },
+                                  { l: "Mandi Lon", k: "dest_lon",   v: routeForm.dest_lon   },
+                                ].map(f => (
+                                  <div key={f.k}>
+                                    <div className="text-[9px] text-muted-foreground uppercase mb-1">{f.l}</div>
+                                    <input
+                                      type="number"
+                                      value={f.v}
+                                      onChange={e => setRouteForm(p => ({
+                                        ...p, [f.k]: parseFloat(e.target.value)||0
+                                      }))}
+                                      className="w-full px-2 py-1.5 rounded-lg bg-muted/30 border border-border text-xs outline-none"
+                                    />
+                                  </div>
+                                ))}
+                              </div>
+                              <div className="mb-2">
+                                <div className="text-[9px] text-muted-foreground uppercase mb-1">
+                                  Destination name
+                                </div>
+                                <input
+                                  value={routeForm.dest_name}
+                                  onChange={e => setRouteForm(p => ({ ...p, dest_name: e.target.value }))}
+                                  className="w-full px-2 py-1.5 rounded-lg bg-muted/30 border border-border text-xs outline-none"
+                                />
+                              </div>
+                              <button
+                                onClick={handleGetRoute}
+                                disabled={routeLoading}
+                                className="w-full py-2 rounded-full bg-secondary/20 text-secondary border border-secondary/30 text-xs font-semibold hover:bg-secondary hover:text-secondary-foreground transition-colors disabled:opacity-50 mb-3"
+                              >
+                                {routeLoading ? "Calculating…" : "🗺️ Get Optimal Route"}
+                              </button>
+                            </motion.div>
+                          )}
+                        </AnimatePresence>
+
+                        {!showRouteForm && !routeResult && (
+                          <div className="h-24 rounded-lg overflow-hidden border border-border">
+                            <MiniMap label="Farm → Mandi" />
+                          </div>
+                        )}
+
+                        {routeResult && !routeResult.error && (
+                          <div className="grid grid-cols-3 gap-2 text-xs">
+                            {[
+                              { l: "Distance", v: `${routeResult.distance_km} km`      },
+                              { l: "Time",     v: `${routeResult.duration_minutes} min` },
+                              { l: "To",       v: routeForm.dest_name                   },
+                            ].map(r => (
+                              <div key={r.l} className="rounded bg-muted/30 p-2">
+                                <div className="text-[10px] text-muted-foreground">{r.l}</div>
+                                <div className="font-display font-bold text-xs">{r.v}</div>
+                              </div>
+                            ))}
+                            <div className="col-span-3 mt-2 text-[11px] text-muted-foreground flex items-start gap-2">
+                              <Truck className="w-3.5 h-3.5 text-accent flex-shrink-0 mt-0.5" />
+                              Hire local truck to {routeForm.dest_name}. Direct deal saves broker fees.
+                            </div>
+                          </div>
+                        )}
+                        {routeResult?.error && (
+                          <div className="text-xs text-destructive mt-2">
+                            Route error: {routeResult.error}
+                          </div>
+                        )}
+                      </motion.div>
+
+                      {/* Negotiation chat */}
+                      <motion.div
+                        initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}
+                        transition={{ delay: 0.6 }}
+                        className="neon-card p-5"
+                      >
+                        <div className="flex items-center gap-2 mb-3">
+                          <MessageCircle className="w-4 h-4 text-accent" />
+                          <span className="font-display font-bold">Negotiate · Direct Chat</span>
+                          <span className="ml-auto text-[10px] font-mono text-muted-foreground">
+                            Coming soon
+                          </span>
+                        </div>
+                        <div className="space-y-2 mb-3">
+                          {[
+                            { side: "left",  msg: "Asking ₹22/kg for 2 tonnes Grade A."  },
+                            { side: "right", msg: "₹20/kg if pickup in 3 days?"          },
+                            { side: "left",  msg: "Deal at ₹21/kg. Locking escrow now ✓" },
+                          ].map((m, i) => (
+                            <div key={i} className={`flex ${m.side==="right" ? "justify-end" : "justify-start"}`}>
+                              <div className={`max-w-[78%] rounded-2xl px-3 py-2 text-xs ${
+                                m.side==="right"
+                                  ? "rounded-br-sm bg-secondary/15 border border-secondary/30"
+                                  : "rounded-bl-sm bg-muted/40"
+                              }`}>
+                                {m.msg}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                        <div className="flex items-center gap-2 rounded-full border border-border bg-card/50 px-3 py-2">
+                          <input
+                            className="flex-1 bg-transparent text-xs outline-none placeholder:text-muted-foreground"
+                            placeholder="Type a message…"
+                          />
+                          <Send className="w-4 h-4 text-secondary" />
+                        </div>
+                      </motion.div>
                     </div>
 
-                    <div className="pt-3 border-t border-border flex items-center justify-between text-[10px] font-mono text-muted-foreground">
-                      <span>{farmerN}</span>
-                      <ExternalLink className="w-3 h-3 hover:text-primary cursor-pointer" />
+                    {/* Kanban — LIVE from orders */}
+                    <h2 className="font-display text-2xl font-bold mt-10 mb-4">Order pipeline</h2>
+                    <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
+                      {Object.entries(kanbanOrders).map(([status, items], i) => (
+                        <motion.div
+                          key={status}
+                          initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}
+                          transition={{ delay: 0.7 + i * 0.06 }}
+                          className="rounded-xl bg-card/50 border border-border p-3"
+                        >
+                          <div className="font-mono text-[10px] text-muted-foreground uppercase tracking-widest mb-2 flex items-center justify-between">
+                            {status}
+                            <span className="text-primary">{items.length}</span>
+                          </div>
+                          <div className="space-y-2">
+                            {items.length === 0 ? (
+                              <div className="text-[10px] text-muted-foreground text-center py-2">Empty</div>
+                            ) : (
+                              items.map((it, j) => (
+                                <div key={j} className="rounded-lg bg-background/60 border border-border p-3">
+                                  <div className="text-[11px] font-semibold leading-tight">{it.c}</div>
+                                  <div className="text-[10px] text-muted-foreground mt-0.5">{it.f}</div>
+                                </div>
+                              ))
+                            )}
+                          </div>
+                        </motion.div>
+                      ))}
                     </div>
-                  </motion.div>
-                );
-              })}
-            </div>
+                  </>
+                )}
+              </>
+            )}
 
-            {/* ── My Orders section (live) ──────────────────────────────── */}
-            {myOrders.length > 0 && (
-              <div className="mt-10">
-                <h2 className="font-display text-xl font-bold mb-4 flex items-center gap-2">
-                  My pending orders
-                  <span className="text-xs font-mono text-muted-foreground">· {myOrders.length} total</span>
+            {/* ── MY ORDERS tab ───────────────────────────────────────── */}
+            {(activeTab === "orders" || activeTab === "history") && (
+              <div>
+                <h2 className="font-display text-2xl font-bold mb-4">
+                  {activeTab === "orders" ? "My Orders" : "Transaction History"}
+                  <span className="text-xs font-mono text-muted-foreground ml-2">
+                    · {myOrders.length} total
+                  </span>
                 </h2>
-                <div className="space-y-3">
-                  {myOrders.map((t: any) => (
-                    <div key={t.transaction_id || t.id} className="neon-card p-4 flex items-center justify-between gap-4">
-                      <div className="flex-1">
-                        <div className="font-semibold text-sm">
-                          {t.listing_crop_type || "Crop"} · {t.quantity_kg}kg · ₹{t.agreed_price}/kg
+                {myOrders.length === 0 ? (
+                  <div className="py-12 text-center border border-dashed border-border rounded-xl text-sm text-muted-foreground">
+                    No orders yet — browse listings and place an order
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    {myOrders.map((t: any) => (
+                      <div
+                        key={t.transaction_id||t.id}
+                        className="neon-card p-4 flex items-center justify-between gap-4"
+                      >
+                        <div className="flex-1 min-w-0">
+                          <div className="font-semibold text-sm">
+                            {t.listing_crop_type||"Crop"} · {t.quantity_kg}kg · ₹{t.agreed_price}/kg
+                          </div>
+                          <div className="text-[11px] text-muted-foreground font-mono mt-0.5">
+                            {(t.transaction_id||t.id||"").slice(0,20)}…
+                          </div>
+                          <div className="text-[11px] text-muted-foreground">
+                            Total: ₹{((t.agreed_price||0)*(t.quantity_kg||0)).toLocaleString()}
+                          </div>
                         </div>
-                        <div className="text-[11px] text-muted-foreground font-mono mt-0.5">
-                          ID: {(t.transaction_id || t.id || "").slice(0, 16)}… · {t.status}
-                        </div>
-                      </div>
-                      <div className={`text-[10px] px-2 py-0.5 rounded-full border font-mono ${
-                        t.status === "completed" ? "border-primary/40 text-primary bg-primary/10" :
-                        t.status === "confirmed" ? "border-secondary/40 text-secondary bg-secondary/10" :
+                        <div className={`text-[10px] px-2 py-0.5 rounded-full border font-mono flex-shrink-0 ${
+                          t.status==="completed" ? "border-primary/40 text-primary bg-primary/10"       :
+                          t.status==="confirmed" ? "border-secondary/40 text-secondary bg-secondary/10" :
                                                    "border-accent/40 text-accent bg-accent/10"
-                      }`}>
-                        {t.status?.toUpperCase()}
+                        }`}>
+                          {t.status?.toUpperCase()}
+                        </div>
+                        {(t.status==="pending"||t.status==="confirmed") && (
+                          <button
+                            onClick={() => handleConfirmTx(t.transaction_id||t.id)}
+                            disabled={confirmingId===(t.transaction_id||t.id)}
+                            className="text-xs px-3 py-1.5 rounded-full bg-primary/10 text-primary border border-primary/30 hover:bg-primary hover:text-primary-foreground transition-colors disabled:opacity-50 flex-shrink-0"
+                          >
+                            {confirmingId===(t.transaction_id||t.id) ? "…" : "Confirm"}
+                          </button>
+                        )}
                       </div>
-                      {t.status === "pending" && (
-                        <button
-                          onClick={() => handleConfirmTx(t.transaction_id || t.id)}
-                          className="text-xs px-3 py-1.5 rounded-full bg-primary/10 text-primary border border-primary/30 hover:bg-primary hover:text-primary-foreground transition-colors"
-                        >
-                          Confirm
-                        </button>
-                      )}
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* ── ANALYTICS tab ───────────────────────────────────────── */}
+            {activeTab === "analytics" && (
+              <div>
+                <h2 className="font-display text-2xl font-bold mb-6">Analytics</h2>
+                <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {[
+                    { l: "Total orders placed",  v: myOrders.length,                                                                      c: "primary"   },
+                    { l: "Completed trades",      v: completedOrders.length,                                                               c: "primary"   },
+                    { l: "Active / pending",      v: activeOrders,                                                                         c: "secondary" },
+                    { l: "Total trade value",     v: `₹${totalVolume.toLocaleString()}`,                                                   c: "accent"    },
+                    { l: "Avg order value",       v: completedOrders.length>0 ? `₹${Math.round(totalVolume/completedOrders.length).toLocaleString()}` : "₹0", c: "secondary" },
+                    { l: "Live listings browsed", v: liveListings.length,                                                                  c: "accent"    },
+                  ].map(s => (
+                    <div key={s.l} className="neon-card p-5">
+                      <div className="text-xs text-muted-foreground uppercase tracking-wider">{s.l}</div>
+                      <div className={`font-display text-3xl font-bold mt-2 text-${s.c}`}>{s.v}</div>
                     </div>
                   ))}
                 </div>
               </div>
             )}
-
-            {/* ── Escrow timeline ───────────────────────────────────────── */}
-            <div className="grid lg:grid-cols-3 gap-4 mt-8">
-              <motion.div
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.4 }}
-                className="neon-card p-5 lg:col-span-2"
-              >
-                <div className="flex items-center gap-2 mb-4">
-                  <ShieldCheck className="w-4 h-4 text-primary" />
-                  <span className="font-display font-bold">TradeEscrow.sol · Order #ORD-2418</span>
-                </div>
-
-                <div className="relative grid grid-cols-5 gap-2">
-                  <div className="absolute top-4 left-[10%] right-[10%] h-px bg-border" />
-                  <motion.div
-                    initial={{ width: 0 }}
-                    animate={{ width: "40%" }}
-                    transition={{ duration: 1.2, delay: 0.6 }}
-                    className="absolute top-4 left-[10%] h-px bg-gradient-to-r from-primary to-secondary shadow-neon-lime"
-                  />
-                  {escrowSteps.map((step, i) => (
-                    <div key={step.l} className="relative flex flex-col items-center text-center">
-                      <div className={`relative z-10 w-8 h-8 rounded-full flex items-center justify-center mb-2 ${
-                        step.s === "done"
-                          ? "bg-primary text-primary-foreground shadow-neon-lime"
-                          : step.s === "active"
-                          ? "bg-secondary text-secondary-foreground shadow-neon-cyan"
-                          : "bg-muted border border-border text-muted-foreground"
-                      }`}>
-                        {step.s === "done"
-                          ? <CheckCircle2 className="w-4 h-4" />
-                          : <span className="text-xs font-mono">{i + 1}</span>
-                        }
-                      </div>
-                      <div className={`text-[10px] leading-tight ${step.s === "todo" ? "text-muted-foreground" : "text-foreground"}`}>
-                        {step.l}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-
-                <div className="mt-5 pt-5 border-t border-border grid grid-cols-3 gap-3 text-xs">
-                  <div>
-                    <div className="text-muted-foreground uppercase text-[10px]">Locked</div>
-                    <div className="font-display text-lg font-bold gradient-text">₹44,000</div>
-                  </div>
-                  <div>
-                    <div className="text-muted-foreground uppercase text-[10px]">Tx hash</div>
-                    <div className="font-mono text-primary text-[11px] truncate">0x9f3a4c…e24f</div>
-                  </div>
-                  <div>
-                    <div className="text-muted-foreground uppercase text-[10px]">Network</div>
-                    <div className="font-mono text-secondary text-[11px]">Sepolia · #5,128,442</div>
-                  </div>
-                </div>
-              </motion.div>
-
-              {/* Provenance QR */}
-              <motion.div
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.5 }}
-                className="neon-card p-5 flex flex-col items-center text-center"
-              >
-                <div className="text-[10px] font-mono text-primary uppercase tracking-widest mb-2">Crop provenance</div>
-                <QRBlock size={120} />
-                <div className="text-xs text-muted-foreground mt-3">CropListing.sol</div>
-                <a className="mt-2 text-[11px] text-primary flex items-center gap-1 hover:underline">
-                  Verify on Etherscan <ExternalLink className="w-3 h-3" />
-                </a>
-              </motion.div>
-            </div>
-
-            {/* ── Route + chat ──────────────────────────────────────────── */}
-            <div className="grid lg:grid-cols-2 gap-4 mt-4">
-              <motion.div
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.55 }}
-                className="neon-card p-5"
-              >
-                <div className="flex items-center gap-2 mb-3">
-                  <Route className="w-4 h-4 text-secondary" />
-                  <span className="font-display font-bold">Route · OSRM optimized</span>
-                </div>
-                <div className="h-24 rounded-lg overflow-hidden border border-border mb-3">
-                  <MiniMap label="Cuddalore → Bengaluru" />
-                </div>
-                <div className="grid grid-cols-3 gap-2 text-xs">
-                  {[
-                    { l: "Distance", v: "87 km"   },
-                    { l: "Time",     v: "1h 45m"  },
-                    { l: "Cost",     v: "₹1,200"  },
-                  ].map((r) => (
-                    <div key={r.l} className="rounded bg-muted/30 p-2">
-                      <div className="text-[10px] text-muted-foreground">{r.l}</div>
-                      <div className="font-display font-bold">{r.v}</div>
-                    </div>
-                  ))}
-                </div>
-                <div className="mt-3 text-[11px] text-muted-foreground flex items-start gap-2">
-                  <Truck className="w-3.5 h-3.5 text-accent flex-shrink-0 mt-0.5" />
-                  Recommended: hire local truck via NH-48 to Bengaluru APMC. Direct deal saves{" "}
-                  <span className="text-primary font-semibold">₹38,000</span> vs broker route.
-                </div>
-              </motion.div>
-
-              <motion.div
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.6 }}
-                className="neon-card p-5"
-              >
-                <div className="flex items-center gap-2 mb-3">
-                  <MessageCircle className="w-4 h-4 text-accent" />
-                  <span className="font-display font-bold">Negotiate · R. Kumar</span>
-                  <span className="ml-auto text-[10px] font-mono text-primary">Online</span>
-                </div>
-                <div className="space-y-2 mb-3">
-                  <div className="flex justify-start">
-                    <div className="max-w-[78%] rounded-2xl rounded-bl-sm bg-muted/40 px-3 py-2 text-xs">
-                      Asking ₹22/kg for 2 tonnes Grade A.
-                    </div>
-                  </div>
-                  <div className="flex justify-end">
-                    <div className="max-w-[78%] rounded-2xl rounded-br-sm bg-secondary/15 border border-secondary/30 px-3 py-2 text-xs">
-                      ₹20/kg if pickup in 3 days?
-                    </div>
-                  </div>
-                  <div className="flex justify-start">
-                    <div className="max-w-[78%] rounded-2xl rounded-bl-sm bg-muted/40 px-3 py-2 text-xs">
-                      Deal at ₹21/kg. Locking escrow now ✓
-                    </div>
-                  </div>
-                </div>
-                <div className="flex items-center gap-2 rounded-full border border-border bg-card/50 px-3 py-2">
-                  <input
-                    className="flex-1 bg-transparent text-xs outline-none placeholder:text-muted-foreground"
-                    placeholder="Type a message…"
-                  />
-                  <Send className="w-4 h-4 text-secondary" />
-                </div>
-              </motion.div>
-            </div>
-
-            {/* ── Kanban order pipeline ────────────────────────────────── */}
-            <h2 className="font-display text-2xl font-bold mt-12 mb-4">Order pipeline</h2>
-            <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
-              {Object.entries(kanbanOrders).map(([status, items], i) => (
-                <motion.div
-                  key={status}
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: 0.7 + i * 0.06 }}
-                  className="rounded-xl bg-card/50 border border-border p-3"
-                >
-                  <div className="font-mono text-[10px] text-muted-foreground uppercase tracking-widest mb-2 flex items-center justify-between">
-                    {status}
-                    <span className="text-primary">{items.length}</span>
-                  </div>
-                  <div className="space-y-2">
-                    {items.length === 0 ? (
-                      <div className="text-[10px] text-muted-foreground text-center py-2">Empty</div>
-                    ) : (
-                      items.map((it, j) => (
-                        <div key={j} className="rounded-lg bg-background/60 border border-border p-3">
-                          <div className="text-[12px] font-semibold">{it.c}</div>
-                          <div className="text-[10px] text-muted-foreground mt-0.5">{it.f}</div>
-                        </div>
-                      ))
-                    )}
-                  </div>
-                </motion.div>
-              ))}
-            </div>
 
           </div>
         </div>
