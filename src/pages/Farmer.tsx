@@ -304,6 +304,30 @@ const FarmerPortal = () => {
   };
 
   const handleDiseaseUpload = async (file: File) => {
+    // Validate file type before uploading
+    const validTypes = ["image/jpeg", "image/png", "image/webp", "image/jpg"];
+    if (!validTypes.includes(file.type)) {
+      setDiseaseResult({
+        disease:   "Invalid file type",
+        treatment: "Please upload a JPG, PNG, or WEBP image of a crop leaf.",
+        severity:  "high",
+        is_plant:  false,
+        error:     "invalid_format",
+      });
+      return;
+    }
+    // Validate file size (max 10MB)
+    if (file.size > 10 * 1024 * 1024) {
+      setDiseaseResult({
+        disease:   "File too large",
+        treatment: "Please upload an image smaller than 10MB.",
+        severity:  "high",
+        is_plant:  false,
+        error:     "file_too_large",
+      });
+      return;
+    }
+
     setDiseaseLoading(true); setDiseaseResult(null); setTranslatedDisease(null);
     try {
       const fd = new FormData(); fd.append("file", file);
@@ -314,8 +338,33 @@ const FarmerPortal = () => {
         body: fd,
       });
       const data = await res.json();
+
+      // Backend rejected as non-plant image
+      if (res.status === 422 && data.detail?.error === "not_a_plant_image") {
+        setDiseaseResult({
+          disease:   "❌ Not a crop image",
+          treatment: data.detail.message,
+          severity:  "high",
+          is_plant:  false,
+          error:     "not_a_plant_image",
+        });
+        return;
+      }
+
+      // Other backend errors
+      if (!res.ok) {
+        setDiseaseResult({
+          disease:   "Detection failed",
+          treatment: data.detail?.message || data.detail || "Please try again with a clear crop leaf photo.",
+          severity:  "high",
+          is_plant:  false,
+          error:     "backend_error",
+        });
+        return;
+      }
+
       setDiseaseResult(data);
-      if (lang !== "english" && data.disease) {
+      if (lang !== "english" && data.disease && data.is_plant !== false) {
         setTranslatedDisease({
           ...data,
           disease:   await translateText(data.disease   || "", lang),
@@ -323,7 +372,13 @@ const FarmerPortal = () => {
         });
       }
     } catch (e: any) {
-      setDiseaseResult({ disease: "Upload failed", treatment: e.message, severity: "high" });
+      setDiseaseResult({
+        disease:   "Upload failed",
+        treatment: "Network error — check your connection and try again.",
+        severity:  "high",
+        is_plant:  false,
+        error:     "network_error",
+      });
     } finally { setDiseaseLoading(false); }
   };
 
@@ -669,31 +724,72 @@ const FarmerPortal = () => {
           )}
           <AnimatePresence>
             {activeDisease && !diseaseLoading && (
-              <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}
-                className="mt-4 rounded-xl border border-accent/40 bg-accent/5 p-5"
-              >
-                <div className="flex items-center justify-between mb-3">
-                  <span className="font-display font-bold text-2xl">{activeDisease.disease}</span>
-                  <span className={`text-xs font-mono px-3 py-1 rounded-full border ${
-                    activeDisease.severity === "critical" || activeDisease.severity === "high"
-                      ? "bg-destructive/10 text-destructive border-destructive/30"
-                      : activeDisease.severity === "none"
-                      ? "bg-primary/10 text-primary border-primary/30"
-                      : "bg-accent/10 text-accent border-accent/30"
-                  }`}>{(activeDisease.severity || "").toUpperCase()}</span>
-                </div>
-                <div className="font-mono text-sm text-accent mb-3">
-                  Confidence: {activeDisease.confidence_percent ?? Math.round((activeDisease.confidence || 0) * 100)}%
-                </div>
-                <div className="text-sm leading-relaxed">{activeDisease.treatment}</div>
-                {activeDisease.mode?.includes("demo") && (
-                  <div className="mt-2 text-xs text-muted-foreground font-mono">Demo mode — deploy YOLOv8 ONNX for live inference</div>
+              <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}>
+                {/* ── NOT A PLANT — show red error card ── */}
+                {activeDisease.is_plant === false || activeDisease.error ? (
+                  <div className="mt-4 rounded-xl border-2 border-destructive/60 bg-destructive/10 p-5">
+                    <div className="flex items-start gap-3 mb-3">
+                      <AlertTriangle className="w-6 h-6 text-destructive flex-shrink-0 mt-0.5" />
+                      <div>
+                        <div className="font-display font-bold text-lg text-destructive">
+                          {activeDisease.disease}
+                        </div>
+                        <div className="text-xs font-mono text-destructive/70 mt-0.5">
+                          NOT A CROP IMAGE
+                        </div>
+                      </div>
+                    </div>
+                    <div className="text-sm leading-relaxed text-foreground/90 whitespace-pre-line">
+                      {activeDisease.treatment}
+                    </div>
+                    <div className="mt-4 p-3 rounded-lg bg-muted/30 border border-border text-xs text-muted-foreground">
+                      <div className="font-semibold mb-1">📸 How to take a correct photo:</div>
+                      <ul className="space-y-0.5 list-disc list-inside">
+                        <li>Take a close-up of the affected leaf</li>
+                        <li>Good daylight — no flash</li>
+                        <li>Fill the frame with the leaf</li>
+                        <li>Supported: tomato, rice, wheat, cotton, maize, potato, onion</li>
+                      </ul>
+                    </div>
+                    <button
+                      onClick={() => { setDiseaseResult(null); setTranslatedDisease(null); if (fileRef.current) fileRef.current.value = ""; }}
+                      className="mt-3 text-xs text-destructive hover:text-destructive/70 flex items-center gap-1"
+                    >
+                      <X className="w-3 h-3" /> Try again with a crop photo
+                    </button>
+                  </div>
+                ) : (
+                  /* ── VALID PLANT — show disease result ── */
+                  <div className="mt-4 rounded-xl border border-accent/40 bg-accent/5 p-5">
+                    <div className="flex items-center justify-between mb-3">
+                      <span className="font-display font-bold text-2xl">{activeDisease.disease}</span>
+                      <span className={`text-xs font-mono px-3 py-1 rounded-full border ${
+                        activeDisease.severity === "critical" || activeDisease.severity === "high"
+                          ? "bg-destructive/10 text-destructive border-destructive/30"
+                          : activeDisease.severity === "none"
+                          ? "bg-primary/10 text-primary border-primary/30"
+                          : "bg-accent/10 text-accent border-accent/30"
+                      }`}>
+                        {(activeDisease.severity || "").toUpperCase()}
+                      </span>
+                    </div>
+                    <div className="font-mono text-sm text-accent mb-3">
+                      Confidence: {activeDisease.confidence_percent ?? Math.round((activeDisease.confidence || 0) * 100)}%
+                    </div>
+                    <div className="text-sm leading-relaxed">{activeDisease.treatment}</div>
+                    {activeDisease.mode?.includes("demo") && (
+                      <div className="mt-2 text-xs text-muted-foreground font-mono">
+                        Demo mode — deploy YOLOv8 ONNX to ml_models/ for live inference
+                      </div>
+                    )}
+                    <button
+                      onClick={() => { setDiseaseResult(null); setTranslatedDisease(null); if (fileRef.current) fileRef.current.value = ""; }}
+                      className="mt-3 text-xs text-muted-foreground hover:text-foreground flex items-center gap-1"
+                    >
+                      <X className="w-3 h-3" /> Clear
+                    </button>
+                  </div>
                 )}
-                <button onClick={() => { setDiseaseResult(null); setTranslatedDisease(null); }}
-                  className="mt-3 text-xs text-muted-foreground hover:text-foreground flex items-center gap-1"
-                >
-                  <X className="w-3 h-3" /> Clear
-                </button>
               </motion.div>
             )}
           </AnimatePresence>
