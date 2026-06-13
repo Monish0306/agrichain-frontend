@@ -8,15 +8,13 @@ interface Props {
   isTranslating?: boolean;
 }
 
-export const LanguageSelector = ({ value, onChange, isTranslating }: Props) => (
+export const LanguageSelector = ({ value, onChange, isTranslating = false }: Props) => (
   <div className={`flex items-center gap-2 px-3 py-2 rounded-full border transition-all ${
-    isTranslating
-      ? "border-primary/50 bg-primary/5"
-      : "border-border bg-card/50 hover:border-primary/30"
+    isTranslating ? "border-primary/50 bg-primary/5" : "border-border bg-card/50 hover:border-primary/30"
   }`}>
     {isTranslating
-      ? <div className="w-4 h-4 border-2 border-primary border-t-transparent rounded-full animate-spin" />
-      : <Languages className="w-4 h-4 text-primary" />
+      ? <div className="w-4 h-4 border-2 border-primary border-t-transparent rounded-full animate-spin flex-shrink-0" />
+      : <Languages className="w-4 h-4 text-primary flex-shrink-0" />
     }
     <select
       value={value}
@@ -28,8 +26,5 @@ export const LanguageSelector = ({ value, onChange, isTranslating }: Props) => (
         <option key={l.code} value={l.code}>{l.native}</option>
       ))}
     </select>
-    {isTranslating && (
-      <span className="text-[10px] text-primary font-mono">Translating…</span>
-    )}
   </div>
 );

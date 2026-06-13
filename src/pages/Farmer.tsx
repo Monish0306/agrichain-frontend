@@ -223,6 +223,10 @@ const FarmerPortal = () => {
         market:          "Market",
         finance:         "Finance",
         logout:          "Logout",
+        today:           "Today",
+        humidity:        "Humidity",
+        wind:            "Wind",
+        sevenDayRain:    "7-day rain",
       }, newLang);
       setUiText(ui);
 
