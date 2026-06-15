@@ -1,19 +1,20 @@
 // src/i18n/useTranslation.ts
-// ─── Instant UI translations + Groq for dynamic content ───
+// ─── Instant UI translations (pre-built) + Groq for dynamic content ───────────
 import { useState, useCallback } from "react";
-import { BASE_URL } from "../api";
+
+const BASE_URL = import.meta.env.VITE_API_URL || "https://agrichain-api-tnhz.onrender.com";
 
 export const LANGUAGES = [
-  { code: "english",  native: "English"  },
-  { code: "tamil",    native: "தமிழ்"    },
-  { code: "hindi",    native: "हिंदी"    },
-  { code: "kannada",  native: "ಕನ್ನಡ"    },
-  { code: "telugu",   native: "తెలుగు"   },
-  { code: "marathi",  native: "मराठी"    },
-  { code: "gujarati", native: "ગુજરાતી"  },
+  { code: "english",  native: "English",  flag: "🇬🇧" },
+  { code: "tamil",    native: "தமிழ்",    flag: "🇮🇳" },
+  { code: "hindi",    native: "हिंदी",    flag: "🇮🇳" },
+  { code: "kannada",  native: "ಕನ್ನಡ",    flag: "🇮🇳" },
+  { code: "telugu",   native: "తెలుగు",   flag: "🇮🇳" },
+  { code: "marathi",  native: "मराठी",    flag: "🇮🇳" },
+  { code: "gujarati", native: "ગુજરાતી",  flag: "🇮🇳" },
 ];
 
-// ── Complete pre-built translations — INSTANT, no API call ───────────────
+// ── Complete pre-built translations — INSTANT, no API call ────────────────────
 const UI_TRANSLATIONS: Record<string, Record<string, string>> = {
   english: {},
   tamil: {
@@ -37,8 +38,9 @@ const UI_TRANSLATIONS: Record<string, Record<string, string>> = {
     noListings:"பட்டியல் இல்லை — புதிய பட்டியல் கிளிக் செய்யவும்",
     provenanceQR:"தோற்றம் QR",blockchainVerif:"Blockchain சரிபார்க்கப்பட்டது",
     routeOptimizer:"பாதை மேம்படுத்தி · OSRM",shortestRoute:"சந்தைக்கு குறுகிய பாதை",
-    farmLat:"நிலம் அட்சரேகை",farmLon:"நிலம் தீர்க்கரேகை",mandiLat:"சந்தை அட்சரேகை",
-    mandiLon:"சந்தை தீர்க்கரேகை",destName:"இலக்கு பெயர்",getRoute:"🗺️ சிறந்த பாதை பெறுக",
+    farmLat:"நிலம் அட்சரேகை",farmLon:"நிலம் தீர்க்கரேகை",
+    mandiLat:"சந்தை அட்சரேகை",mandiLon:"சந்தை தீர்க்கரேகை",
+    destName:"இலக்கு பெயர்",getRoute:"🗺️ சிறந்த பாதை பெறுக",
     distance:"தூரம்",duration:"நேரம்",destination:"இலக்கு",
     module04:"தொகுதி 04 · நிதி திட்டமிடல்",investCalc:"முதலீட்டு கணக்கீடு",
     cropLabel:"பயிர்",landAcres:"நிலம் (ஏக்கர்)",category:"வகை",calculate:"💰 கணக்கிடு",
@@ -126,105 +128,110 @@ const UI_TRANSLATIONS: Record<string, Record<string, string>> = {
     listCrop:"ನನ್ನ ಬೆಳೆ ಪಟ್ಟಿ ಮಾಡಿ",newListing:"ಹೊಸ ಪಟ್ಟಿ",cancelBtn:"ರದ್ದುಮಾಡಿ",
     cropType:"ಬೆಳೆ ವಿಧ",quantityKg:"ಪ್ರಮಾಣ (ಕೆಜಿ)",priceKg:"ಬೆಲೆ/ಕೆಜಿ (₹)",
     district:"ಜಿಲ್ಲೆ",stateLabel:"ರಾಜ್ಯ",description:"ವಿವರಣೆ",qualityGrade:"ಗುಣಮಟ್ಟ",
-    createListing:"✅ ಪಟ್ಟಿ ಮಾಡಿ",activeListings:"ನಿಮ್ಮ ಸಕ್ರಿಯ ಪಟ್ಟಿಗಳು",
-    noListings:"ಯಾವುದೇ ಪಟ್ಟಿ ಇಲ್ಲ",provenanceQR:"ಮೂಲ QR",blockchainVerif:"Blockchain ಪರಿಶೀಲಿಸಲಾಗಿದೆ",
-    routeOptimizer:"ಮಾರ್ಗ ಆಪ್ಟಿಮೈಜರ್",shortestRoute:"ಮಂಡಿಗೆ ಚಿಕ್ಕ ಮಾರ್ಗ",
-    farmLat:"ಜಮೀನು ಅಕ್ಷಾಂಶ",farmLon:"ಜಮೀನು ರೇಖಾಂಶ",mandiLat:"ಮಂಡಿ ಅಕ್ಷಾಂಶ",
+    createListing:"✅ ಪಟ್ಟಿ ರಚಿಸಿ",activeListings:"ನಿಮ್ಮ ಸಕ್ರಿಯ ಪಟ್ಟಿಗಳು",
+    noListings:"ಇನ್ನೂ ಪಟ್ಟಿ ಇಲ್ಲ",provenanceQR:"ಮೂಲ QR",blockchainVerif:"Blockchain ಪರಿಶೀಲಿಸಲಾಗಿದೆ",
+    routeOptimizer:"ಮಾರ್ಗ ಅನುಕೂಲಕ · OSRM",shortestRoute:"ಮಂಡಿಗೆ ಚಿಕ್ಕ ಮಾರ್ಗ",
+    farmLat:"ತೋಟ ಅಕ್ಷಾಂಶ",farmLon:"ತೋಟ ರೇಖಾಂಶ",mandiLat:"ಮಂಡಿ ಅಕ್ಷಾಂಶ",
     mandiLon:"ಮಂಡಿ ರೇಖಾಂಶ",destName:"ಗಮ್ಯಸ್ಥಾನ ಹೆಸರು",getRoute:"🗺️ ಉತ್ತಮ ಮಾರ್ಗ ಪಡೆಯಿರಿ",
     distance:"ದೂರ",duration:"ಸಮಯ",destination:"ಗಮ್ಯಸ್ಥಾನ",
     module04:"ಮಾಡ್ಯೂಲ್ 04 · ಹಣಕಾಸು ಯೋಜನೆ",investCalc:"ಹೂಡಿಕೆ ಕ್ಯಾಲ್ಕುಲೇಟರ್",
-    cropLabel:"ಬೆಳೆ",landAcres:"ಭೂಮಿ (ಎಕರೆ)",category:"ವರ್ಗ",calculate:"💰 ಲೆಕ್ಕಾಚಾರ",
-    costPerAcre:"ಪ್ರತಿ ಎಕರೆ ವೆಚ್ಚ",totalInvestment:"ಒಟ್ಟು ಹೂಡಿಕೆ",kccLoan:"KCC ಸಾಲ (80%)",
-    annualInterest:"ವಾರ್ಷಿಕ ಬಡ್ಡಿ",netAfterSub:"ಸಹಾಯಧನದ ನಂತರ",kccEmiLabel:"KCC ಸಾಲ · 4%",
-    emiCalc:"ಸಾಲ EMI ಕ್ಯಾಲ್ಕುಲೇಟರ್",loanAmount:"ಸಾಲದ ಮೊತ್ತ (₹)",interestRate:"ಬಡ್ಡಿ ದರ %",
-    durationMonths:"ಅವಧಿ (ತಿಂಗಳು)",calcEmi:"📊 EMI ಲೆಕ್ಕಾಚಾರ",monthlyEmi:"ಮಾಸಿಕ EMI",
-    totalPayment:"ಒಟ್ಟು ಪಾವತಿ",totalInterest:"ಒಟ್ಟು ಬಡ್ಡಿ",principal:"ಅಸಲು",
+    cropLabel:"ಬೆಳೆ",landAcres:"ಭೂಮಿ (ಎಕರೆ)",category:"ವರ್ಗ",calculate:"💰 ಲೆಕ್ಕ ಮಾಡಿ",
+    costPerAcre:"ಎಕರೆಗೆ ವೆಚ್ಚ",totalInvestment:"ಒಟ್ಟು ಹೂಡಿಕೆ",kccLoan:"KCC ಸಾಲ (80%)",
+    annualInterest:"ವಾರ್ಷಿಕ ಬಡ್ಡಿ",netAfterSub:"ಸಹಾಯಧನದ ನಂತರ ನಿವ್ವಳ",
+    kccEmiLabel:"KCC ಸಾಲ · 4% ವಾರ್ಷಿಕ",emiCalc:"ಸಾಲ EMI ಕ್ಯಾಲ್ಕುಲೇಟರ್",
+    loanAmount:"ಸಾಲದ ಮೊತ್ತ (₹)",interestRate:"ಬಡ್ಡಿ ದರ % ವಾರ್ಷಿಕ",
+    durationMonths:"ಅವಧಿ (ತಿಂಗಳು)",calcEmi:"📊 EMI ಲೆಕ್ಕ ಮಾಡಿ",monthlyEmi:"ಮಾಸಿಕ EMI",
+    totalPayment:"ಒಟ್ಟು ಪಾವತಿ",totalInterest:"ಒಟ್ಟು ಬಡ್ಡಿ",principal:"ಮೂಲ",
     schemeFinder:"ಯೋಜನೆ ಹುಡುಕಾಟ",govtMoney:"ನಿಮಗೆ ಅರ್ಹ ಸರ್ಕಾರಿ ಸಹಾಯ",
-    applyNow:"ಈಗ ಅರ್ಜಿ ಸಲ್ಲಿಸಿ",clickCalc:"ಯೋಜನೆಗಳನ್ನು ಹುಡುಕಲು ಲೆಕ್ಕಾಚಾರ ಕ್ಲಿಕ್ ಮಾಡಿ",
-    totalSubsidy:"ಒಟ್ಟು ಸಹಾಯಧನ",thisSeason:"ಈ ಋತುವಿನಲ್ಲಿ",
-    home:"ಮನೆ",advisory:"ಸಲಹೆ",market:"ಮಾರುಕಟ್ಟೆ",finance:"ಹಣಕಾಸು",
+    applyNow:"ಈಗ ಅರ್ಜಿ ಸಲ್ಲಿಸಿ",clickCalc:"ಯೋಜನೆಗಳನ್ನು ಹುಡುಕಲು ಲೆಕ್ಕ ಮಾಡಿ",
+    totalSubsidy:"ಒಟ್ಟು ಸಹಾಯಧನ",thisSeason:"ಈ ಸೀಸನ್‌ನಲ್ಲಿ",
+    home:"ಮುಖಪುಟ",advisory:"ಸಲಹೆ",market:"ಮಾರುಕಟ್ಟೆ",finance:"ಹಣಕಾಸು",
     merchantPortal:"ವ್ಯಾಪಾರಿ ಪೋರ್ಟಲ್",dashboard:"ಡ್ಯಾಶ್‌ಬೋರ್ಡ್",browseListings:"ಪಟ್ಟಿಗಳನ್ನು ನೋಡಿ",
-    myOrders:"ನನ್ನ ಆದೇಶಗಳು",txHistory:"ವಹಿವಾಟು ಇತಿಹಾಸ",analytics:"ವಿಶ್ಲೇಷಣೆ",
-    activeOrders:"ಸಕ್ರಿಯ ಆದೇಶಗಳು",tradeVolume:"ವ್ಯಾಪಾರ",liveListings:"ನೇರ ಪಟ್ಟಿಗಳು",
-    completedTrades:"ಪೂರ್ಣ ವ್ಯಾಪಾರ",placeOrder:"ಆದೇಶ ನೀಡಿ",confirmOrder:"✅ ಆದೇಶ ದೃಢಪಡಿಸಿ",
-    quantity:"ಪ್ರಮಾಣ (ಕೆಜಿ)",offerPrice:"ಆಫರ್ ₹/ಕೆಜಿ",confirmBtn:"ದೃಢಪಡಿಸಿ",
-    totalLabel:"ಒಟ್ಟು",calculating:"ಲೆಕ್ಕಾಚಾರ…",
+    myOrders:"ನನ್ನ ಆರ್ಡರ್‌ಗಳು",txHistory:"ವ್ಯವಹಾರ ಇತಿಹಾಸ",analytics:"ವಿಶ್ಲೇಷಣೆ",
+    activeOrders:"ಸಕ್ರಿಯ ಆರ್ಡರ್‌ಗಳು",tradeVolume:"ವ್ಯಾಪಾರ ಪ್ರಮಾಣ",
+    liveListings:"ಲೈವ್ ಪಟ್ಟಿಗಳು",completedTrades:"ಪೂರ್ಣ ವ್ಯಾಪಾರ",
+    placeOrder:"ಆರ್ಡರ್ ಮಾಡಿ",confirmOrder:"✅ ಆರ್ಡರ್ ದೃಢಪಡಿಸಿ",
+    quantity:"ಪ್ರಮಾಣ (ಕೆಜಿ)",offerPrice:"ಬೆಲೆ ₹/ಕೆಜಿ",confirmBtn:"ದೃಢಪಡಿಸಿ",
+    totalLabel:"ಒಟ್ಟು",calculating:"ಲೆಕ್ಕ ಮಾಡಲಾಗುತ್ತಿದೆ…",
     portalTitle:"ರಾಷ್ಟ್ರೀಯ ಟೆಲಿಮೆಟ್ರಿ",restrictedAccess:"ಮಾನಿಟರ್ · ನಿರ್ಬಂಧಿತ",
-    refresh:"ರಿಫ್ರೆಶ್",exportCsv:"CSV ರಫ್ತು",lastUpdated:"ಕೊನೆ ಅಪ್ಡೇಟ್",
-    liveLabel:"ನೇರ",demoLabel:"ಡೆಮೊ",overview:"ಸಾರಾಂಶ",transactions:"ವಹಿವಾಟುಗಳು",
+    refresh:"ಮರುಲೋಡ್",exportCsv:"CSV ರಫ್ತು",lastUpdated:"ಕೊನೆಯ ಅಪ್ಡೇಟ್",
+    liveLabel:"ನೇರ",demoLabel:"ಡೆಮೋ",overview:"ಅವಲೋಕನ",transactions:"ವ್ಯವಹಾರಗಳು",
     listings:"ಪಟ್ಟಿಗಳು",auditLog:"ಆಡಿಟ್ ಲಾಗ್",
   },
   telugu: {
     farmerPortal:"రైతు పోర్టల్ · లైవ్",greeting:"నమస్కారం",logout:"లాగ్ అవుట్",
-    today:"ఈరోజు",humidity:"తేమ",wind:"గాలి",sevenDayRain:"7-రోజుల వర్షం",
-    forecastTimeline:"వాతావరణ సూచన",farmingAlerts:"వ్యవసాయ హెచ్చరికలు",
-    module01:"మాడ్యూల్ 01 · స్మార్ట్ సలహా",cropRec:"పంట సిఫారసు",
-    nitrogen:"నైట్రోజన్",phosphorous:"ఫాస్పరస్",potassium:"పొటాషియం",
-    temperature:"ఉష్ణోగ్రత",humidityPct:"తేమ %",ph:"pH స్థాయి",rainfallMm:"వర్షపాతం మిమీ",
-    soilType:"నేల రకం",getRecommend:"🌱 పంట సిఫారసు పొందండి",best:"అత్యుత్తమం",
-    whyThis:"ఈ సిఫారసు ఎందుకు? · SHAP",fertilizer:"ఎరువు",
-    module01b:"మాడ్యూల్ 01B · AI వ్యాధి గుర్తింపు",uploadPhoto:"పంట ఫోటో అప్లోడ్",
-    clickUpload:"పంట ఫోటో అప్లోడ్ చేయడానికి క్లిక్",jpgPng:"JPG, PNG · గరిష్టం 10MB",
-    module03:"మాడ్యూల్ 03 · ధర తెలివి",sevenDay:"7-రోజుల సూచన",
+    today:"నేడు",humidity:"తేమ",wind:"గాలి",sevenDayRain:"7-రోజుల వర్షం",
+    forecastTimeline:"వాతావరణ అంచనా",farmingAlerts:"వ్యవసాయ హెచ్చరికలు",
+    module01:"మాడ్యూల్ 01 · స్మార్ట్ సలహా",cropRec:"పంట సూచన",
+    nitrogen:"నైట్రోజన్",phosphorous:"భాస్వరం",potassium:"పొటాషియం",
+    temperature:"ఉష్ణోగ్రత",humidityPct:"తేమ %",ph:"pH విలువ",rainfallMm:"వర్షపాతం మిమీ",
+    soilType:"నేల రకం",getRecommend:"🌱 పంట సూచన పొందండి",best:"అత్యుత్తమ",
+    whyThis:"ఈ సూచన ఎందుకు? · SHAP",fertilizer:"ఎరువు",
+    module01b:"మాడ్యూల్ 01B · AI వ్యాధి పరిశోధన",uploadPhoto:"పంట ఫోటో అప్‌లోడ్",
+    clickUpload:"పంట ఫోటో అప్‌లోడ్ చేయడానికి క్లిక్ చేయండి",jpgPng:"JPG, PNG · గరిష్ఠ 10MB",
+    module03:"మాడ్యూల్ 03 · ధర మేధస్సు",sevenDay:"7-రోజుల అంచనా",
     thirtyDay:"30-రోజుల చరిత్ర",module02:"మాడ్యూల్ 02 · మార్కెట్",
-    listCrop:"నా పంటను జాబితా చేయి",newListing:"కొత్త జాబితా",cancelBtn:"రద్దు చేయి",
-    cropType:"పంట రకం",quantityKg:"పరిమాణం (కేజీ)",priceKg:"ధర/కేజీ (₹)",
-    district:"జిల్లా",stateLabel:"రాష్ట్రం",description:"వివరణ",qualityGrade:"నాణ్యత",
-    createListing:"✅ జాబితా చేయి",activeListings:"మీ క్రియాశీల జాబితాలు",
-    noListings:"జాబితాలు లేవు",provenanceQR:"మూలం QR",blockchainVerif:"Blockchain ధృవీకరించబడింది",
-    routeOptimizer:"మార్గ ఆప్టిమైజర్",shortestRoute:"మండికి చిన్న మార్గం",
+    listCrop:"నా పంటను జాబితా చేయండి",newListing:"కొత్త జాబితా",cancelBtn:"రద్దు",
+    cropType:"పంట రకం",quantityKg:"పరిమాణం (కిలో)",priceKg:"ధర/కిలో (₹)",
+    district:"జిల్లా",stateLabel:"రాష్ట్రం",description:"వివరణ",qualityGrade:"నాణ్యత గ్రేడ్",
+    createListing:"✅ జాబితా సృష్టించండి",activeListings:"మీ క్రియాశీల జాబితాలు",
+    noListings:"ఇంకా జాబితా లేదు",provenanceQR:"మూల QR",blockchainVerif:"Blockchain ధృవీకరించబడింది",
+    routeOptimizer:"మార్గ ఆప్టిమైజర్ · OSRM",shortestRoute:"మండికి చిన్న మార్గం",
     farmLat:"పొలం అక్షాంశం",farmLon:"పొలం రేఖాంశం",mandiLat:"మండి అక్షాంశం",
-    mandiLon:"మండి రేఖాంశం",destName:"గమ్యం పేరు",getRoute:"🗺️ అత్యుత్తమ మార్గం",
+    mandiLon:"మండి రేఖాంశం",destName:"గమ్యం పేరు",getRoute:"🗺️ ఉత్తమ మార్గం పొందండి",
     distance:"దూరం",duration:"సమయం",destination:"గమ్యం",
     module04:"మాడ్యూల్ 04 · ఆర్థిక ప్రణాళిక",investCalc:"పెట్టుబడి కాల్కులేటర్",
-    cropLabel:"పంట",landAcres:"భూమి (ఎకరాలు)",category:"వర్గం",calculate:"💰 లెక్కించు",
-    costPerAcre:"ఎకరానికి వ్యయం",totalInvestment:"మొత్తం పెట్టుబడి",kccLoan:"KCC రుణం (80%)",
-    annualInterest:"వార్షిక వడ్డీ",netAfterSub:"సబ్సిడీ తర్వాత",kccEmiLabel:"KCC రుణం · 4%",
-    emiCalc:"రుణ EMI కాల్కులేటర్",loanAmount:"రుణ మొత్తం (₹)",interestRate:"వడ్డీ రేటు %",
-    durationMonths:"వ్యవధి (నెలలు)",calcEmi:"📊 EMI లెక్కించు",monthlyEmi:"నెలవారీ EMI",
+    cropLabel:"పంట",landAcres:"భూమి (ఎకరాలు)",category:"వర్గం",calculate:"💰 లెక్కించండి",
+    costPerAcre:"ఎకరాకు ఖర్చు",totalInvestment:"మొత్తం పెట్టుబడి",kccLoan:"KCC రుణం (80%)",
+    annualInterest:"వార్షిక వడ్డీ",netAfterSub:"సబ్సిడీ తర్వాత నికర",
+    kccEmiLabel:"KCC రుణం · 4% వార్షిక",emiCalc:"రుణ EMI కాల్కులేటర్",
+    loanAmount:"రుణ మొత్తం (₹)",interestRate:"వడ్డీ రేటు % వార్షిక",
+    durationMonths:"వ్యవధి (నెలలు)",calcEmi:"📊 EMI లెక్కించండి",monthlyEmi:"నెలవారీ EMI",
     totalPayment:"మొత్తం చెల్లింపు",totalInterest:"మొత్తం వడ్డీ",principal:"అసలు",
-    schemeFinder:"పథకం అన్వేషకుడు",govtMoney:"మీకు అర్హమైన సహాయం",
-    applyNow:"ఇప్పుడే దరఖాస్తు",clickCalc:"పథకాలను కనుగొనడానికి లెక్కించు",
+    schemeFinder:"పథకం శోధకుడు",govtMoney:"మీకు అర్హత ఉన్న ప్రభుత్వ సహాయం",
+    applyNow:"ఇప్పుడు దరఖాస్తు చేయండి",clickCalc:"పథకాలు కనుగొనడానికి లెక్కించండి",
     totalSubsidy:"మొత్తం సబ్సిడీ",thisSeason:"ఈ సీజన్‌లో",
     home:"హోమ్",advisory:"సలహా",market:"మార్కెట్",finance:"ఆర్థికం",
     merchantPortal:"వ్యాపారి పోర్టల్",dashboard:"డాష్‌బోర్డ్",browseListings:"జాబితాలు చూడండి",
     myOrders:"నా ఆర్డర్లు",txHistory:"లావాదేవీ చరిత్ర",analytics:"విశ్లేషణ",
-    activeOrders:"క్రియాశీల ఆర్డర్లు",tradeVolume:"వ్యాపార పరిమాణం",liveListings:"లైవ్ జాబితాలు",
-    completedTrades:"పూర్తయిన వ్యాపారాలు",placeOrder:"ఆర్డర్ ఇవ్వండి",confirmOrder:"✅ ఆర్డర్ నిర్ధారించండి",
-    quantity:"పరిమాణం (కేజీ)",offerPrice:"ఆఫర్ ₹/కేజీ",confirmBtn:"నిర్ధారించండి",
+    activeOrders:"క్రియాశీల ఆర్డర్లు",tradeVolume:"వ్యాపార పరిమాణం",
+    liveListings:"లైవ్ జాబితాలు",completedTrades:"పూర్తయిన వ్యాపారాలు",
+    placeOrder:"ఆర్డర్ చేయండి",confirmOrder:"✅ ఆర్డర్ నిర్ధారించండి",
+    quantity:"పరిమాణం (కిలో)",offerPrice:"ఆఫర్ ₹/కిలో",confirmBtn:"నిర్ధారించు",
     totalLabel:"మొత్తం",calculating:"లెక్కిస్తోంది…",
     portalTitle:"జాతీయ టెలిమెట్రీ",restrictedAccess:"మానిటర్ · నిరోధించబడింది",
-    refresh:"రిఫ్రెష్",exportCsv:"CSV ఎగుమతి",lastUpdated:"చివరిసారి నవీకరించబడింది",
-    liveLabel:"లైవ్",demoLabel:"డెమో",overview:"సమీక్ష",transactions:"లావాదేవీలు",
+    refresh:"రిఫ్రెష్",exportCsv:"CSV ఎగుమతి",lastUpdated:"చివరిగా నవీకరించబడింది",
+    liveLabel:"లైవ్",demoLabel:"డెమో",overview:"అవలోకనం",transactions:"లావాదేవీలు",
     listings:"జాబితాలు",auditLog:"ఆడిట్ లాగ్",
   },
   marathi: {
     farmerPortal:"शेतकरी पोर्टल · थेट",greeting:"नमस्कार",logout:"लॉगआउट",
     today:"आज",humidity:"आर्द्रता",wind:"वारा",sevenDayRain:"7-दिवस पाऊस",
-    forecastTimeline:"हवामान अंदाज",farmingAlerts:"शेती इशारे",
-    module01:"मॉड्यूल 01 · स्मार्ट सल्ला",cropRec:"पीक शिफारस",
-    nitrogen:"नत्र",phosphorous:"स्फुरद",potassium:"पालाश",
+    forecastTimeline:"हवामान अंदाज",farmingAlerts:"शेती सूचना",
+    module01:"मॉड्युल 01 · स्मार्ट सल्ला",cropRec:"पीक शिफारस",
+    nitrogen:"नायट्रोजन",phosphorous:"फॉस्फरस",potassium:"पोटॅशियम",
     temperature:"तापमान",humidityPct:"आर्द्रता %",ph:"pH पातळी",rainfallMm:"पाऊस मिमी",
     soilType:"मातीचा प्रकार",getRecommend:"🌱 पीक शिफारस मिळवा",best:"सर्वोत्तम",
     whyThis:"ही शिफारस का? · SHAP",fertilizer:"खत",
-    module01b:"मॉड्यूल 01B · AI रोग ओळख",uploadPhoto:"पीकाचा फोटो अपलोड करा",
-    clickUpload:"पीकाचा फोटो अपलोड करण्यासाठी क्लिक करा",jpgPng:"JPG, PNG · कमाल 10MB",
-    module03:"मॉड्यूल 03 · किंमत बुद्धिमत्ता",sevenDay:"7-दिवस अंदाज",
-    thirtyDay:"30-दिवस इतिहास",module02:"मॉड्यूल 02 · बाजारपेठ",
-    listCrop:"माझे पीक नोंदवा",newListing:"नवीन नोंद",cancelBtn:"रद्द करा",
-    cropType:"पीक प्रकार",quantityKg:"प्रमाण (किलो)",priceKg:"किंमत/किलो (₹)",
-    district:"जिल्हा",stateLabel:"राज्य",description:"वर्णन",qualityGrade:"गुणवत्ता",
-    createListing:"✅ नोंद तयार करा",activeListings:"तुमच्या सक्रिय नोंदी",
-    noListings:"अद्याप नोंदी नाहीत",provenanceQR:"उत्पत्ती QR",blockchainVerif:"Blockchain सत्यापित",
+    module01b:"मॉड्युल 01B · AI रोग शोध",uploadPhoto:"पीक फोटो अपलोड करा",
+    clickUpload:"पीक फोटो अपलोड करण्यासाठी क्लिक करा",jpgPng:"JPG, PNG · जास्तीत जास्त 10MB",
+    module03:"मॉड्युल 03 · किंमत बुद्धिमत्ता",sevenDay:"7-दिवस अंदाज",
+    thirtyDay:"30-दिवस इतिहास",module02:"मॉड्युल 02 · बाजार",
+    listCrop:"माझे पीक सूचीबद्ध करा",newListing:"नवीन यादी",cancelBtn:"रद्द करा",
+    cropType:"पिकाचा प्रकार",quantityKg:"प्रमाण (किलो)",priceKg:"किंमत/किलो (₹)",
+    district:"जिल्हा",stateLabel:"राज्य",description:"वर्णन",qualityGrade:"गुणवत्ता श्रेणी",
+    createListing:"✅ यादी तयार करा",activeListings:"तुमच्या सक्रिय याद्या",
+    noListings:"अजून यादी नाही",provenanceQR:"मूळ QR",blockchainVerif:"Blockchain सत्यापित",
     routeOptimizer:"मार्ग ऑप्टिमायझर",shortestRoute:"बाजारापर्यंत छोटा मार्ग",
     farmLat:"शेत अक्षांश",farmLon:"शेत रेखांश",mandiLat:"बाजार अक्षांश",
     mandiLon:"बाजार रेखांश",destName:"गंतव्य नाव",getRoute:"🗺️ सर्वोत्तम मार्ग मिळवा",
     distance:"अंतर",duration:"वेळ",destination:"गंतव्य",
-    module04:"मॉड्यूल 04 · आर्थिक नियोजन",investCalc:"गुंतवणूक कॅल्क्युलेटर",
+    module04:"मॉड्युल 04 · आर्थिक नियोजन",investCalc:"गुंतवणूक कॅल्क्युलेटर",
     cropLabel:"पीक",landAcres:"जमीन (एकर)",category:"श्रेणी",calculate:"💰 गणना करा",
     costPerAcre:"प्रति एकर खर्च",totalInvestment:"एकूण गुंतवणूक",kccLoan:"KCC कर्ज (80%)",
-    annualInterest:"वार्षिक व्याज",netAfterSub:"अनुदानानंतर",kccEmiLabel:"KCC कर्ज · 4%",
-    emiCalc:"कर्ज EMI कॅल्क्युलेटर",loanAmount:"कर्जाची रक्कम (₹)",interestRate:"व्याज दर %",
+    annualInterest:"वार्षिक व्याज",netAfterSub:"अनुदानानंतर निव्वळ",
+    kccEmiLabel:"KCC कर्ज · 4% वार्षिक",emiCalc:"कर्ज EMI कॅल्क्युलेटर",
+    loanAmount:"कर्जाची रक्कम (₹)",interestRate:"व्याज दर % वार्षिक",
     durationMonths:"कालावधी (महिने)",calcEmi:"📊 EMI गणना करा",monthlyEmi:"मासिक EMI",
     totalPayment:"एकूण देयक",totalInterest:"एकूण व्याज",principal:"मूळ रक्कम",
     schemeFinder:"योजना शोधक",govtMoney:"तुमच्यासाठी शासकीय मदत",
@@ -267,8 +274,9 @@ const UI_TRANSLATIONS: Record<string, Record<string, string>> = {
     module04:"મોડ્યુલ 04 · નાણાકીય આયોજન",investCalc:"રોકાણ કેલ્ક્યુલેટર",
     cropLabel:"પાક",landAcres:"જમીન (એકર)",category:"શ્રેણી",calculate:"💰 ગણતરી",
     costPerAcre:"પ્રતિ એકર ખર્ચ",totalInvestment:"કુલ રોકાણ",kccLoan:"KCC લોન (80%)",
-    annualInterest:"વાર્ષિક વ્યાજ",netAfterSub:"સબસિડી પછી",kccEmiLabel:"KCC લોન · 4%",
-    emiCalc:"લોન EMI કેલ્ક્યુલેટર",loanAmount:"લોન રકમ (₹)",interestRate:"વ્યાજ દર %",
+    annualInterest:"વાર્ષિક વ્યાજ",netAfterSub:"સબસિડી પછી નિવ્વળ",
+    kccEmiLabel:"KCC લોન · 4% વાર્ષિક",emiCalc:"લોન EMI કેલ્ક્યુલેટર",
+    loanAmount:"લોન રકમ (₹)",interestRate:"વ્યાજ દર % વાર્ષિક",
     durationMonths:"અવધિ (મહિના)",calcEmi:"📊 EMI ગણતરી",monthlyEmi:"માસિક EMI",
     totalPayment:"કુલ ચુકવણી",totalInterest:"કુલ વ્યાજ",principal:"મૂળ",
     schemeFinder:"યોજના શોધક",govtMoney:"તમારા માટે સરકારી સહાય",
@@ -288,16 +296,17 @@ const UI_TRANSLATIONS: Record<string, Record<string, string>> = {
   },
 };
 
-// ── In-memory cache for Groq dynamic translations ─────────────────────────
+// ── In-memory cache for Groq dynamic translations ─────────────────────────────
 const groqCache = new Map<string, string>();
 
-// ── Translate DYNAMIC content only via Groq (advisory, disease etc.) ──────
+// ── translateText — single dynamic string via Groq API ────────────────────────
+// Use this for: advisory results, disease diagnosis, farming alerts from backend
 export const translateText = async (
   text: string,
   lang: string
 ): Promise<string> => {
   if (!text?.trim() || lang === "english") return text;
-  const key = `${lang}::${text}`;
+  const key = `${lang}::${text.slice(0, 120)}`;
   if (groqCache.has(key)) return groqCache.get(key)!;
   try {
     const token = localStorage.getItem("agrichain_token");
@@ -309,14 +318,18 @@ export const translateText = async (
       },
       body: JSON.stringify({ text, target_language: lang }),
     });
+    if (!res.ok) return text;
     const data = await res.json();
     const translated = data.translated || text;
     groqCache.set(key, translated);
     return translated;
-  } catch { return text; }
+  } catch {
+    return text;
+  }
 };
 
-// translateBatch kept for compatibility but now uses pre-built translations
+// ── translateBatch — UI labels via pre-built dict (INSTANT, no API) ───────────
+// Falls back to Groq only for keys not in dict
 export const translateBatch = async (
   items: Record<string, string>,
   lang: string
@@ -324,13 +337,30 @@ export const translateBatch = async (
   if (lang === "english") return items;
   const dict = UI_TRANSLATIONS[lang] || {};
   const result: Record<string, string> = {};
+  const missing: Record<string, string> = {};
+
   for (const [k, v] of Object.entries(items)) {
-    result[k] = dict[k] || v; // instant — no API
+    if (dict[k]) {
+      result[k] = dict[k]; // instant from pre-built
+    } else {
+      missing[k] = v; // needs Groq
+    }
   }
+
+  // Translate missing keys via Groq in parallel (max 5 at a time)
+  const missingKeys = Object.keys(missing);
+  for (let i = 0; i < missingKeys.length; i += 5) {
+    const chunk = missingKeys.slice(i, i + 5);
+    const translated = await Promise.all(
+      chunk.map(async (k) => [k, await translateText(missing[k], lang)] as [string, string])
+    );
+    for (const [k, v] of translated) result[k] = v;
+  }
+
   return result;
 };
 
-// ── React hook ────────────────────────────────────────────────────────────
+// ── useTranslation hook ───────────────────────────────────────────────────────
 export const useTranslation = () => {
   const [lang, setLang] = useState<string>(
     () => localStorage.getItem("agrichain_lang") || "english"
