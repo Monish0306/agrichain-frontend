@@ -7,7 +7,7 @@ import { LanguageSelector } from "../components/LanguageSelector";
 import { useTranslation, translateBatch } from "../i18n/useTranslation";
 import {
   Activity, AlertOctagon, BarChart3, CheckCircle2,
-  Download, Filter, Lock, Map as MapIcon,
+  Download, Lock, Map as MapIcon,
   RefreshCw, Shield, ShieldCheck, Sprout,
   TrendingUp, Users,
 } from "lucide-react";
@@ -19,7 +19,7 @@ import {
 import { monitor } from "../api";
 import { getAuth, clearAuth } from "../store/auth";
 
-// ── Static fallback data ──────────────────────────────────────────────────
+// ── Static fallback data ──────────────────────────────────────────────────────
 const staticTxVolume = [
   { d: "Mon", v: 124 }, { d: "Tue", v: 188 }, { d: "Wed", v: 162 },
   { d: "Thu", v: 240 }, { d: "Fri", v: 312 }, { d: "Sat", v: 280 }, { d: "Sun", v: 198 },
@@ -48,8 +48,8 @@ const subsidies = [
   { state: "PB", name: "MSP procurement", disbursed: 91, unclaimed: 9  },
 ];
 const districtRegistrations = [
-  { d: "Cuddalore", c: 4218 }, { d: "Mysore",    c: 3964 },
-  { d: "Nashik",    c: 3712 }, { d: "Warangal",  c: 2891 },
+  { d: "Cuddalore", c: 4218 }, { d: "Mysore",   c: 3964 },
+  { d: "Nashik",    c: 3712 }, { d: "Warangal", c: 2891 },
   { d: "Junagadh",  c: 2410 },
 ];
 const cropHealth = [
@@ -63,7 +63,23 @@ const CHART_COLORS = [
   "hsl(250 100% 70%)", "hsl(320 100% 65%)", "hsl(30 100% 60%)", "hsl(60 100% 60%)",
 ];
 
-const sevColor    = (s: string) => s === "HIGH" ? "destructive" : s === "MED" ? "accent" : "secondary";
+// ── Severity → colour name mapping ───────────────────────────────────────────
+// FIX 1: sevColor was used in dynamic className like `border-${c}/40`
+// Tailwind purges dynamic classes — use full static class strings instead
+const sevBadgeClass = (sev: string) =>
+  sev === "HIGH"
+    ? "border-destructive/40 bg-destructive/5 text-destructive"
+    : sev === "MED"
+    ? "border-accent/40 bg-accent/5 text-accent"
+    : "border-secondary/40 bg-secondary/5 text-secondary";
+
+const sevInnerClass = (sev: string) =>
+  sev === "HIGH"
+    ? "bg-destructive/15 text-destructive border border-destructive/30"
+    : sev === "MED"
+    ? "bg-accent/15 text-accent border border-accent/30"
+    : "bg-secondary/15 text-secondary border border-secondary/30";
+
 const statusColor = (s: string) =>
   s === "completed" || s === "RELEASED"
     ? "border-primary/40 text-primary bg-primary/10"
@@ -71,6 +87,7 @@ const statusColor = (s: string) =>
     ? "border-secondary/40 text-secondary bg-secondary/10"
     : "border-destructive/40 text-destructive bg-destructive/10";
 
+// ── Chart builders ────────────────────────────────────────────────────────────
 const buildVolumeChart = (txList: any[]) => {
   const days = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
   const counts: Record<string, number> = {};
@@ -95,7 +112,7 @@ const buildStateChart = (listingList: any[]) => {
 
 type Section = "overview" | "transactions" | "listings" | "audit" | "analytics";
 
-// ─────────────────────────────────────────────────────────────────────────
+// ─────────────────────────────────────────────────────────────────────────────
 const MonitorPortal = () => {
   const navigate = useNavigate();
   const user     = getAuth();
@@ -104,52 +121,72 @@ const MonitorPortal = () => {
     if (!user || user.role !== "monitor") navigate("/login");
   }, []);
 
-  // ── Language via hook ─────────────────────────────────────────────────
+  // ── Language ──────────────────────────────────────────────────────────────
   const { lang, changeLang, isTranslating, setIsTranslating } = useTranslation();
   const [uiText, setUiText] = useState<Record<string, string>>({});
 
-  // ── Data state ────────────────────────────────────────────────────────
-  const [overview,     setOverview]     = useState<any>(null);
-  const [transactions, setTransactions] = useState<any[]>([]);
-  const [liveListings, setLiveListings] = useState<any[]>([]);
-  const [auditLog,     setAuditLog]     = useState<any[]>([]);
-  const [dataReady,    setDataReady]    = useState(false);
-  const [loading,      setLoading]      = useState(false);
-  const [lastUpdated,  setLastUpdated]  = useState(new Date().toLocaleTimeString());
-  const [txFilter,     setTxFilter]     = useState("all");
+  // ── Data state ────────────────────────────────────────────────────────────
+  const [overview,      setOverview]      = useState<any>(null);
+  const [transactions,  setTransactions]  = useState<any[]>([]);
+  const [liveListings,  setLiveListings]  = useState<any[]>([]);
+  const [auditLog,      setAuditLog]      = useState<any[]>([]);
+  const [dataReady,     setDataReady]     = useState(false);
+  const [loading,       setLoading]       = useState(false);
+  const [lastUpdated,   setLastUpdated]   = useState(new Date().toLocaleTimeString());
+  const [txFilter,      setTxFilter]      = useState("all");
   const [activeSection, setActiveSection] = useState<Section>("overview");
 
   const volumeChart = transactions.length > 0 ? buildVolumeChart(transactions) : staticTxVolume;
   const stateChart  = liveListings.length  > 0 ? buildStateChart(liveListings)  : staticStateData;
-  const displayTx   = transactions.length > 0 ? transactions : staticTxTable;
+  const displayTx   = transactions.length  > 0 ? transactions : staticTxTable;
   const isLive      = dataReady && transactions.length > 0;
 
   const filteredTx = txFilter === "all"
     ? displayTx
-    : displayTx.filter((t: any) => (t.status||"").toLowerCase() === txFilter);
+    : displayTx.filter((t: any) => (t.status || "").toLowerCase() === txFilter);
 
-  // ── Fetch data ────────────────────────────────────────────────────────
+  // ── Fetch data ────────────────────────────────────────────────────────────
+  // FIX 2: Your file called monitor.getOverview(), monitor.getTransactions(),
+  // monitor.getListings(), monitor.getAuditLog() — none of these exist in api/index.ts
+  // Correct methods are: monitor.stats(), monitor.auditLog(), marketplace.transactions()
+  // and marketplace.listings() — fixed below
   const fetchData = async () => {
     setLoading(true);
     try {
+      const token = localStorage.getItem("agrichain_token");
+      const BASE  = import.meta.env.VITE_API_URL || "https://agrichain-api-tnhz.onrender.com";
+      const h     = { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) };
+
       const [ov, tx, li, al] = await Promise.allSettled([
-        monitor.getOverview()     as Promise<any>,
-        monitor.getTransactions() as Promise<any>,
-        monitor.getListings()     as Promise<any>,
-        monitor.getAuditLog()     as Promise<any>,
+        fetch(`${BASE}/api/monitor/stats`,                      { headers: h }).then(r => r.json()),
+        fetch(`${BASE}/api/marketplace/transactions?limit=100`, { headers: h }).then(r => r.json()),
+        fetch(`${BASE}/api/marketplace/listings?limit=100`,     { headers: h }).then(r => r.json()),
+        fetch(`${BASE}/api/monitor/audit-log?limit=50`,         { headers: h }).then(r => r.json()),
       ]);
-      if (ov.status === "fulfilled" && ov.value) setOverview(ov.value);
-      if (tx.status === "fulfilled" && tx.value?.transactions?.length) setTransactions(tx.value.transactions);
-      if (li.status === "fulfilled" && li.value?.listings?.length)     setLiveListings(li.value.listings);
-      if (al.status === "fulfilled" && al.value?.audit_log?.length)    setAuditLog(al.value.audit_log);
+
+      if (ov.status === "fulfilled" && ov.value)
+        setOverview(ov.value);
+      if (tx.status === "fulfilled" && (tx.value?.transactions?.length || tx.value?.length))
+        setTransactions(tx.value?.transactions || tx.value || []);
+      if (li.status === "fulfilled" && (li.value?.listings?.length || li.value?.length))
+        setLiveListings(li.value?.listings || li.value || []);
+      if (al.status === "fulfilled" && (al.value?.audit_log?.length || al.value?.logs?.length))
+        setAuditLog(al.value?.audit_log || al.value?.logs || []);
+
       setLastUpdated(new Date().toLocaleTimeString());
-    } catch { /* use static */ }
+    } catch { /* use static fallback */ }
     finally { setLoading(false); setDataReady(true); }
   };
 
-  useEffect(() => { fetchData(); }, []);
+  // FIX 3: Auto-refresh every 30 seconds — your file only called fetchData once
+  // Added interval so monitor sees live updates without manual refresh
+  useEffect(() => {
+    fetchData();
+    const interval = setInterval(fetchData, 30_000);
+    return () => clearInterval(interval);
+  }, []);
 
-  // ── FULL PAGE TRANSLATION via Groq ────────────────────────────────────
+  // ── Full page translation ─────────────────────────────────────────────────
   const handleLangChange = async (newLang: string) => {
     changeLang(newLang);
     if (newLang === "english") { setUiText({}); return; }
@@ -165,13 +202,11 @@ const MonitorPortal = () => {
         liveLabel:         "LIVE",
         demoLabel:         "DEMO",
         jwtActive:         "JWT Active",
-        // Sidebar
         overview:          "Overview",
         transactions:      "Transactions",
         listings:          "Listings",
         auditLog:          "Audit Log",
         analytics:         "Analytics",
-        // KPIs
         totalTransactions: "Total transactions",
         activeFarmers:     "Active farmers",
         tradeVolume:       "Trade vol · total",
@@ -180,7 +215,6 @@ const MonitorPortal = () => {
         totalListings:     "Total listings",
         pendingTrades:     "Pending trades",
         platformHealth:    "Platform health",
-        // Sections
         geoDistribution:   "Geographic distribution · district-level",
         cropHealthAlerts:  "Crop health alerts",
         topDistricts:      "Top districts",
@@ -190,26 +224,22 @@ const MonitorPortal = () => {
         blockchainAudit:   "Blockchain audit",
         fraudDetector:     "AI fraud detector",
         liveSummary:       "Live summary",
-        // Table headers
         txHash:            "Tx ID / Hash",
         farmer:            "Farmer",
         merchant:          "Merchant",
         amount:            "Amount",
         time:              "Time",
         status:            "Status",
-        // Filter labels
         allFilter:         "All",
         pendingFilter:     "Pending",
         confirmedFilter:   "Confirmed",
         completedFilter:   "Completed",
-        // Misc
         noTransactions:    "No real transactions yet — showing demo data",
         filter:            "Filter",
         disbursed:         "disbursed",
         unclaimed:         "unclaimed",
         fromDB:            "from DB",
         completedOf:       "completed trades",
-        // Analytics
         monthlyVolume:     "Monthly Trade Volume (₹L)",
         cropDist:          "Crop Distribution %",
         priceAlerts:       "Price Alerts",
@@ -229,37 +259,37 @@ const MonitorPortal = () => {
     const rows = [
       ["Tx ID / Hash","Farmer","Merchant","Amount","Time","Status"],
       ...displayTx.map((t: any) => [
-        t.transaction_id||t.hash,
-        t.farmer_name||t.farmer,
-        t.merchant_name||t.merchant,
-        t.amount||`₹${((t.agreed_price||0)*(t.quantity_kg||0)).toFixed(0)}`,
-        t.created_at ? new Date(t.created_at).toLocaleString() : t.time,
-        t.status,
+        t.transaction_id || t.hash || "",
+        t.farmer_name    || t.farmer   || "",
+        t.merchant_name  || t.merchant || "",
+        t.amount || `₹${((t.agreed_price || 0) * (t.quantity_kg || 0)).toFixed(0)}`,
+        t.created_at ? new Date(t.created_at).toLocaleString() : (t.time || ""),
+        t.status || "",
       ]),
     ];
-    const csv  = rows.map(r => r.join(",")).join("\n");
+    const csv  = rows.map(r => r.map(v => `"${String(v).replace(/"/g, '""')}"`).join(",")).join("\n");
     const blob = new Blob([csv], { type: "text/csv" });
     const url  = URL.createObjectURL(blob);
     const a    = document.createElement("a");
-    a.href = url; a.download = "agrichain_transactions.csv"; a.click();
+    a.href = url; a.download = `agrichain_transactions_${Date.now()}.csv`; a.click();
     URL.revokeObjectURL(url);
   };
 
   const sidebarNav = [
-    { id: "overview",     label: tx("overview",     "Overview"),      icon: BarChart3   },
-    { id: "transactions", label: tx("transactions", "Transactions"),  icon: Activity    },
-    { id: "listings",     label: tx("listings",     "Listings"),      icon: Sprout      },
-    { id: "audit",        label: tx("auditLog",     "Audit Log"),     icon: Shield      },
-    { id: "analytics",   label: tx("analytics",    "Analytics"),     icon: TrendingUp  },
+    { id: "overview",      label: tx("overview",     "Overview"),     icon: BarChart3  },
+    { id: "transactions",  label: tx("transactions", "Transactions"), icon: Activity   },
+    { id: "listings",      label: tx("listings",     "Listings"),     icon: Sprout     },
+    { id: "audit",         label: tx("auditLog",     "Audit Log"),    icon: Shield     },
+    { id: "analytics",     label: tx("analytics",    "Analytics"),    icon: TrendingUp },
   ];
 
-  // ─────────────────────────────────────────────────────────────────────
+  // ───────────────────────────────────────────────────────────────────────────
   return (
     <div className="min-h-screen bg-background text-foreground">
       <Navbar />
       <div className="container mx-auto px-6 pt-28 pb-16">
 
-        {/* ━━ HEADER ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */}
+        {/* ━━ HEADER ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */}
         <motion.div
           initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.6 }}
@@ -267,60 +297,58 @@ const MonitorPortal = () => {
         >
           <div>
             <div className="font-mono text-xs text-accent uppercase tracking-widest mb-2 flex items-center gap-2">
-              <Lock className="w-3 h-3" /> {tx("restrictedAccess","Monitor · Restricted access")}
+              <Lock className="w-3 h-3" />
+              {tx("restrictedAccess", "Monitor · Restricted access")}
             </div>
             <h1 className="font-display text-4xl font-bold">
-              National <span className="gradient-text-amber">{tx("portalTitle","Telemetry")}</span>
+              National <span className="gradient-text-amber">{tx("portalTitle", "Telemetry")}</span>
             </h1>
             <div className="mt-1 text-xs font-mono text-muted-foreground">
-              {tx("lastUpdated","Last updated")}: {lastUpdated}
+              {tx("lastUpdated", "Last updated")}: {lastUpdated}
+              <span className="ml-2 text-[10px] text-muted-foreground/60">· auto-refreshes every 30s</span>
             </div>
           </div>
 
           <div className="flex items-center gap-2 flex-wrap">
             <div className="flex items-center gap-2 px-3 py-1.5 rounded-full border border-primary/30 bg-primary/5 text-xs font-mono text-primary">
-              <ShieldCheck className="w-3.5 h-3.5" /> {tx("jwtActive","JWT Active")}
+              <ShieldCheck className="w-3.5 h-3.5" />
+              {tx("jwtActive", "JWT Active")}
             </div>
             <div className="flex items-center gap-2 px-3 py-1.5 rounded-full border border-border bg-card/50 text-xs font-mono text-muted-foreground">
               <span className={`w-2 h-2 rounded-full ${isLive ? "bg-primary animate-pulse" : "bg-muted-foreground"}`} />
-              {isLive ? tx("liveLabel","LIVE") : tx("demoLabel","DEMO")}
+              {isLive ? tx("liveLabel", "LIVE") : tx("demoLabel", "DEMO")}
             </div>
             <button
               onClick={fetchData} disabled={loading}
               className="flex items-center gap-1.5 px-3 py-1.5 rounded-full border border-border bg-card/50 text-xs font-mono text-muted-foreground hover:border-primary hover:text-primary transition-colors disabled:opacity-50"
             >
               <RefreshCw className={`w-3.5 h-3.5 ${loading ? "animate-spin" : ""}`} />
-              {tx("refresh","Refresh")}
+              {tx("refresh", "Refresh")}
             </button>
             <button
               onClick={handleExportCSV}
               className="flex items-center gap-1.5 px-3 py-1.5 rounded-full border border-primary/40 bg-primary/5 text-primary text-xs font-mono hover:bg-primary hover:text-primary-foreground transition-colors"
             >
               <Download className="w-3.5 h-3.5" />
-              {tx("exportCsv","Export CSV")}
+              {tx("exportCsv", "Export CSV")}
             </button>
-            {/* Language selector — full page translation */}
-            <LanguageSelector
-              value={lang}
-              onChange={handleLangChange}
-              isTranslating={isTranslating}
-            />
+            <LanguageSelector value={lang} onChange={handleLangChange} isTranslating={isTranslating} />
             <button
               onClick={handleLogout}
               className="px-3 py-1.5 rounded-full border border-destructive/40 bg-destructive/10 text-destructive text-xs font-mono hover:bg-destructive hover:text-white transition-colors"
             >
-              {tx("logout","Logout")}
+              {tx("logout", "Logout")}
             </button>
           </div>
         </motion.div>
 
-        {/* ━━ KPI CARDS (LIVE) ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */}
+        {/* ━━ KPI CARDS ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */}
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
           {[
-            { l: tx("totalTransactions","Total transactions"), v: overview ? String(overview.total_transactions)    : "…", c: "primary"   },
-            { l: tx("activeFarmers",    "Active farmers"),     v: overview ? overview.total_farmers?.toLocaleString(): "…", c: "secondary" },
-            { l: tx("tradeVolume",      "Trade vol · total"),  v: overview ? `₹${((overview.total_transaction_value||0)/100000).toFixed(1)}L` : "…", c: "accent" },
-            { l: tx("completedTrades",  "Completed trades"),   v: overview ? String(overview.completed_transactions) : "…", c: "primary"   },
+            { l: tx("totalTransactions", "Total transactions"), v: overview ? String(overview.total_transactions    || 0) : "…", c: "primary"   },
+            { l: tx("activeFarmers",     "Active farmers"),     v: overview ? (overview.total_farmers    || 0).toLocaleString() : "…", c: "secondary" },
+            { l: tx("tradeVolume",       "Trade vol · total"),  v: overview ? `₹${((overview.total_transaction_value || 0) / 100000).toFixed(1)}L` : "…", c: "accent" },
+            { l: tx("completedTrades",   "Completed trades"),   v: overview ? String(overview.completed_transactions || 0) : "…", c: "primary"   },
           ].map((k, i) => (
             <motion.div key={k.l}
               initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}
@@ -335,7 +363,7 @@ const MonitorPortal = () => {
 
         <div className="grid lg:grid-cols-[200px_1fr] gap-6">
 
-          {/* ━━ SIDEBAR — working tabs ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */}
+          {/* ━━ SIDEBAR ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */}
           <motion.aside
             initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }}
             transition={{ delay: 0.2 }}
@@ -355,31 +383,31 @@ const MonitorPortal = () => {
               </button>
             ))}
 
-            {/* Live summary in sidebar */}
+            {/* Live summary */}
             {overview && (
               <div className="mt-4 pt-4 border-t border-border px-3">
                 <div className="text-[10px] font-mono text-muted-foreground uppercase tracking-widest mb-2">
-                  {tx("liveSummary","Live summary")}
+                  {tx("liveSummary", "Live summary")}
                 </div>
                 {[
-                  { l: tx("activeFarmers","Farmers"),      v: overview.total_farmers    },
-                  { l: tx("totalMerchants","Merchants"),   v: overview.total_merchants  },
-                  { l: tx("totalListings","Listings"),     v: overview.total_listings   },
-                  { l: tx("totalTransactions","Txns"),     v: overview.total_transactions },
+                  { l: tx("activeFarmers",     "Farmers"),  v: overview.total_farmers     || 0 },
+                  { l: tx("totalMerchants",    "Merchants"),v: overview.total_merchants    || 0 },
+                  { l: tx("totalListings",     "Listings"), v: overview.total_listings     || 0 },
+                  { l: tx("totalTransactions", "Txns"),     v: overview.total_transactions || 0 },
                 ].map(s => (
                   <div key={s.l} className="flex justify-between text-xs mb-1">
                     <span className="text-muted-foreground">{s.l}</span>
-                    <span className="font-mono font-semibold">{s.v}</span>
+                    <span className="font-mono font-semibold">{Number(s.v).toLocaleString()}</span>
                   </div>
                 ))}
               </div>
             )}
           </motion.aside>
 
-          {/* ━━ MAIN CONTENT ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */}
+          {/* ━━ MAIN CONTENT ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */}
           <div>
 
-            {/* ── OVERVIEW section ────────────────────────────────────── */}
+            {/* ── OVERVIEW ─────────────────────────────────────────────────── */}
             {activeSection === "overview" && (
               <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-6">
 
@@ -391,11 +419,17 @@ const MonitorPortal = () => {
                     <div className="flex items-center justify-between mb-4">
                       <div className="flex items-center gap-2">
                         <MapIcon className="w-4 h-4 text-primary" />
-                        <span className="font-display font-bold">{tx("geoDistribution","Geographic distribution · district-level")}</span>
+                        <span className="font-display font-bold">
+                          {tx("geoDistribution", "Geographic distribution · district-level")}
+                        </span>
                       </div>
-                      <div className="flex items-center gap-2 text-[10px] font-mono text-muted-foreground">
-                        <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-primary" /> Tx density</span>
-                        <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-destructive" /> Cyclone</span>
+                      <div className="flex items-center gap-3 text-[10px] font-mono text-muted-foreground">
+                        <span className="flex items-center gap-1">
+                          <span className="w-2 h-2 rounded-full bg-primary" /> Tx density
+                        </span>
+                        <span className="flex items-center gap-1">
+                          <span className="w-2 h-2 rounded-full bg-destructive" /> Cyclone
+                        </span>
                       </div>
                     </div>
                     <div className="h-[380px]"><IndiaMap /></div>
@@ -406,14 +440,29 @@ const MonitorPortal = () => {
                   >
                     <div className="flex items-center gap-2 mb-4">
                       <Sprout className="w-4 h-4 text-primary" />
-                      <span className="font-display font-bold">{tx("cropHealthAlerts","Crop health alerts")}</span>
+                      <span className="font-display font-bold">
+                        {tx("cropHealthAlerts", "Crop health alerts")}
+                      </span>
                     </div>
                     <div className="space-y-2.5">
                       {cropHealth.map(c => (
-                        <div key={c.dist} className={`rounded-xl border border-${c.sev}/30 bg-${c.sev}/5 p-3`}>
+                        // FIX 1 applied: static class strings instead of dynamic `border-${c.sev}/30`
+                        <div key={c.dist} className={`rounded-xl border p-3 ${
+                          c.sev === "destructive"
+                            ? "border-destructive/30 bg-destructive/5"
+                            : c.sev === "accent"
+                            ? "border-accent/30 bg-accent/5"
+                            : "border-primary/30 bg-primary/5"
+                        }`}>
                           <div className="flex items-center justify-between mb-1">
                             <span className="text-sm font-semibold">{c.crop}</span>
-                            <span className={`text-[10px] font-mono px-2 py-0.5 rounded-full bg-${c.sev}/15 text-${c.sev} border border-${c.sev}/30`}>
+                            <span className={`text-[10px] font-mono px-2 py-0.5 rounded-full border ${
+                              c.sev === "destructive"
+                                ? "bg-destructive/15 text-destructive border-destructive/30"
+                                : c.sev === "accent"
+                                ? "bg-accent/15 text-accent border-accent/30"
+                                : "bg-primary/15 text-primary border-primary/30"
+                            }`}>
                               {c.status}
                             </span>
                           </div>
@@ -427,7 +476,7 @@ const MonitorPortal = () => {
                       <div className="flex items-center gap-2 mb-3">
                         <Users className="w-4 h-4 text-secondary" />
                         <span className="font-display font-bold text-sm">
-                          {tx("topDistricts","Top districts")} {liveListings.length > 0 ? "· live" : "· demo"}
+                          {tx("topDistricts", "Top districts")} {liveListings.length > 0 ? "· live" : "· demo"}
                         </span>
                       </div>
                       <div className="space-y-2">
@@ -440,7 +489,9 @@ const MonitorPortal = () => {
                                 <span className="font-mono text-secondary">{d.c.toLocaleString()}</span>
                               </div>
                               <div className="h-1.5 rounded-full bg-muted overflow-hidden">
-                                <motion.div initial={{ width: 0 }} animate={{ width: `${(d.c/max)*100}%` }}
+                                <motion.div
+                                  initial={{ width: 0 }}
+                                  animate={{ width: `${(d.c / max) * 100}%` }}
                                   transition={{ duration: 1, delay: 0.4 }}
                                   className="h-full bg-gradient-to-r from-secondary to-primary shadow-neon-cyan"
                                 />
@@ -461,7 +512,7 @@ const MonitorPortal = () => {
                     <div className="flex items-center gap-2 mb-4">
                       <TrendingUp className="w-4 h-4 text-primary" />
                       <span className="font-display font-bold">
-                        {tx("txVolume7d","Transaction volume · 7d")}
+                        {tx("txVolume7d", "Transaction volume · 7d")}
                         {isLive && <span className="text-[10px] text-primary font-mono ml-2">LIVE</span>}
                       </span>
                     </div>
@@ -484,7 +535,7 @@ const MonitorPortal = () => {
                     <div className="flex items-center gap-2 mb-4">
                       <span className="w-2 h-2 rounded-full bg-secondary shadow-[0_0_8px_hsl(var(--secondary))]" />
                       <span className="font-display font-bold">
-                        {tx("listingsByState","Listings by state")}
+                        {tx("listingsByState", "Listings by state")}
                         {liveListings.length > 0 && <span className="text-[10px] text-secondary font-mono ml-2">LIVE</span>}
                       </span>
                     </div>
@@ -495,7 +546,7 @@ const MonitorPortal = () => {
                           <XAxis dataKey="s" tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 11 }} axisLine={false} tickLine={false} />
                           <YAxis tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 11 }} axisLine={false} tickLine={false} />
                           <Tooltip cursor={{ fill: "hsl(var(--muted) / 0.3)" }} contentStyle={{ background: "hsl(var(--card))", border: "1px solid hsl(var(--border))", borderRadius: 8 }} />
-                          <Bar dataKey="v" fill="hsl(168 100% 55%)" radius={[6,6,0,0]} />
+                          <Bar dataKey="v" fill="hsl(168 100% 55%)" radius={[6, 6, 0, 0]} />
                         </BarChart>
                       </ResponsiveContainer>
                     </div>
@@ -509,13 +560,15 @@ const MonitorPortal = () => {
                   <div className="flex items-center justify-between mb-4">
                     <div className="flex items-center gap-2">
                       <CheckCircle2 className="w-4 h-4 text-accent" />
-                      <span className="font-display font-bold">{tx("subsidyTitle","Subsidy disbursement · state-wise · SubsidyVerification.sol")}</span>
+                      <span className="font-display font-bold">
+                        {tx("subsidyTitle", "Subsidy disbursement · state-wise · SubsidyVerification.sol")}
+                      </span>
                     </div>
                     <span className="text-[10px] font-mono text-muted-foreground">vs eligibility</span>
                   </div>
                   <div className="space-y-4">
                     {subsidies.map((s, i) => (
-                      <motion.div key={s.state+s.name}
+                      <motion.div key={s.state + s.name}
                         initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }}
                         transition={{ delay: 0.55 + i * 0.05 }}
                       >
@@ -525,8 +578,8 @@ const MonitorPortal = () => {
                             <span className="font-semibold">{s.name}</span>
                           </div>
                           <div className="flex items-center gap-3 font-mono">
-                            <span className="text-primary">{s.disbursed}% {tx("disbursed","disbursed")}</span>
-                            <span className="text-accent">{s.unclaimed}% {tx("unclaimed","unclaimed")}</span>
+                            <span className="text-primary">{s.disbursed}% {tx("disbursed", "disbursed")}</span>
+                            <span className="text-accent">{s.unclaimed}% {tx("unclaimed", "unclaimed")}</span>
                           </div>
                         </div>
                         <div className="h-2 rounded-full bg-muted overflow-hidden flex">
@@ -546,13 +599,15 @@ const MonitorPortal = () => {
               </motion.div>
             )}
 
-            {/* ── TRANSACTIONS section ─────────────────────────────────── */}
+            {/* ── TRANSACTIONS ─────────────────────────────────────────────── */}
             {activeSection === "transactions" && (
               <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-4">
-                <div className="flex items-center justify-between">
+                <div className="flex items-center justify-between flex-wrap gap-2">
                   <h2 className="font-display text-2xl font-bold">
-                    {tx("transactions","Transactions")}
-                    <span className="text-xs font-mono text-muted-foreground ml-2">· {filteredTx.length}</span>
+                    {tx("transactions", "Transactions")}
+                    <span className="text-xs font-mono text-muted-foreground ml-2">
+                      · {filteredTx.length} {isLive ? "(live)" : "(demo)"}
+                    </span>
                   </h2>
                   <div className="flex items-center gap-2 flex-wrap">
                     {["all","pending","confirmed","completed"].map(f => (
@@ -563,48 +618,54 @@ const MonitorPortal = () => {
                             : "border-border hover:border-accent/40"
                         }`}
                       >
-                        {f === "all" ? tx("allFilter","All") :
-                         f === "pending" ? tx("pendingFilter","Pending") :
-                         f === "confirmed" ? tx("confirmedFilter","Confirmed") :
-                         tx("completedFilter","Completed")}
+                        {f === "all"       ? tx("allFilter",       "All")       :
+                         f === "pending"   ? tx("pendingFilter",   "Pending")   :
+                         f === "confirmed" ? tx("confirmedFilter", "Confirmed") :
+                                            tx("completedFilter", "Completed")}
                       </button>
                     ))}
                     <button onClick={handleExportCSV}
                       className="text-xs px-3 py-1 rounded-full border border-primary/40 bg-primary/5 text-primary flex items-center gap-1 hover:bg-primary hover:text-primary-foreground transition-colors"
                     >
-                      <Download className="w-3 h-3" /> {tx("exportCsv","Export CSV")}
+                      <Download className="w-3 h-3" /> {tx("exportCsv", "Export CSV")}
                     </button>
                   </div>
                 </div>
 
                 <div className="neon-card overflow-hidden">
-                  {/* Table header */}
                   <div className="grid grid-cols-6 gap-2 px-4 py-3 border-b border-border bg-muted/20 text-[10px] font-mono text-muted-foreground uppercase tracking-wider">
-                    <span>{tx("txHash","Tx ID / Hash")}</span>
-                    <span>{tx("farmer","Farmer")}</span>
-                    <span>{tx("merchant","Merchant")}</span>
-                    <span>{tx("amount","Amount")}</span>
-                    <span>{tx("time","Time")}</span>
-                    <span>{tx("status","Status")}</span>
+                    <span>{tx("txHash",    "Tx ID / Hash")}</span>
+                    <span>{tx("farmer",    "Farmer")}</span>
+                    <span>{tx("merchant",  "Merchant")}</span>
+                    <span>{tx("amount",    "Amount")}</span>
+                    <span>{tx("time",      "Time")}</span>
+                    <span>{tx("status",    "Status")}</span>
                   </div>
-                  {/* Table rows */}
                   <div className="divide-y divide-border">
                     {filteredTx.map((t: any, idx: number) => {
-                      const txId     = t.transaction_id||t.hash||"";
-                      const farmer   = t.farmer_name||t.farmer||"—";
-                      const merchant = t.merchant_name||t.merchant||"—";
-                      const amount   = t.amount ? String(t.amount) : t.agreed_price ? `₹${(t.agreed_price*(t.quantity_kg||1)).toLocaleString()}` : "—";
-                      const timeStr  = t.created_at ? new Date(t.created_at).toLocaleTimeString() : t.time||"—";
-                      const status   = (t.status||"pending").toUpperCase();
+                      const txId     = t.transaction_id || t.hash || "";
+                      const farmerN  = t.farmer_name  || t.farmer   || "—";
+                      const merchantN= t.merchant_name|| t.merchant  || "—";
+                      const amount   = t.amount
+                        ? String(t.amount)
+                        : t.agreed_price
+                        ? `₹${(t.agreed_price * (t.quantity_kg || 1)).toLocaleString()}`
+                        : "—";
+                      const timeStr  = t.created_at
+                        ? new Date(t.created_at).toLocaleTimeString()
+                        : (t.time || "—");
+                      const status   = (t.status || "pending").toUpperCase();
                       return (
-                        <motion.div key={txId||idx}
+                        <motion.div key={txId || idx}
                           initial={{ opacity: 0, x: 10 }} animate={{ opacity: 1, x: 0 }}
                           transition={{ delay: idx * 0.02 }}
                           className="grid grid-cols-6 gap-2 px-4 py-3 text-xs hover:bg-muted/20 transition-colors"
                         >
-                          <span className="font-mono text-primary truncate">{txId.length > 14 ? txId.slice(0,14)+"…" : txId}</span>
-                          <span className="text-foreground/80 truncate">{farmer}</span>
-                          <span className="text-foreground/80 truncate">{merchant}</span>
+                          <span className="font-mono text-primary truncate">
+                            {txId.length > 14 ? txId.slice(0, 14) + "…" : txId}
+                          </span>
+                          <span className="truncate">{farmerN}</span>
+                          <span className="truncate">{merchantN}</span>
                           <span className="font-display font-bold gradient-text">{amount}</span>
                           <span className="text-muted-foreground font-mono">{timeStr}</span>
                           <span>
@@ -618,26 +679,27 @@ const MonitorPortal = () => {
                   </div>
                   {dataReady && transactions.length === 0 && (
                     <div className="text-center text-muted-foreground text-xs py-6 font-mono">
-                      {tx("noTransactions","No real transactions yet — showing demo data")}
+                      {tx("noTransactions", "No real transactions yet — showing demo data")}
                     </div>
                   )}
-                  {/* Footer total */}
                   <div className="px-4 py-3 border-t border-border bg-muted/10 flex justify-end text-xs font-mono">
                     <span className="font-bold gradient-text">
                       Total: ₹{filteredTx.reduce((s: number, t: any) =>
-                        s + (t.agreed_price||0) * (t.quantity_kg||0), 0).toLocaleString()}
+                        s + (t.agreed_price || 0) * (t.quantity_kg || 0), 0).toLocaleString()}
                     </span>
                   </div>
                 </div>
               </motion.div>
             )}
 
-            {/* ── LISTINGS section ─────────────────────────────────────── */}
+            {/* ── LISTINGS ─────────────────────────────────────────────────── */}
             {activeSection === "listings" && (
               <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-4">
                 <h2 className="font-display text-2xl font-bold">
-                  {tx("listings","Listings")}
-                  <span className="text-xs font-mono text-muted-foreground ml-2">· {liveListings.length || overview?.total_listings || 0}</span>
+                  {tx("listings", "Listings")}
+                  <span className="text-xs font-mono text-muted-foreground ml-2">
+                    · {liveListings.length || overview?.total_listings || 0}
+                  </span>
                 </h2>
                 {liveListings.length === 0 ? (
                   <div className="grid sm:grid-cols-3 gap-4">
@@ -659,13 +721,15 @@ const MonitorPortal = () => {
                     </div>
                     <div className="divide-y divide-border">
                       {liveListings.map((l: any, i: number) => (
-                        <div key={l.id||i} className="grid grid-cols-5 gap-2 px-4 py-3 text-xs hover:bg-muted/20">
-                          <span className="font-semibold">{l.crop_type||"Crop"}</span>
+                        <div key={l.id || i}
+                          className="grid grid-cols-5 gap-2 px-4 py-3 text-xs hover:bg-muted/20 transition-colors"
+                        >
+                          <span className="font-semibold capitalize">{l.crop_type || "Crop"}</span>
                           <span>{l.quantity_kg}kg</span>
                           <span className="font-display font-bold gradient-text">₹{l.asking_price}/kg</span>
-                          <span className="truncate">{l.district||"—"}</span>
-                          <span className={`text-[10px] px-2 py-0.5 rounded-full border font-mono w-fit ${statusColor(l.status||"pending")}`}>
-                            {(l.status||"").toUpperCase()}
+                          <span className="truncate">{l.district || "—"}</span>
+                          <span className={`text-[10px] px-2 py-0.5 rounded-full border font-mono w-fit ${statusColor(l.status || "pending")}`}>
+                            {(l.status || "").toUpperCase()}
                           </span>
                         </div>
                       ))}
@@ -675,35 +739,38 @@ const MonitorPortal = () => {
               </motion.div>
             )}
 
-            {/* ── AUDIT LOG section ────────────────────────────────────── */}
+            {/* ── AUDIT LOG ────────────────────────────────────────────────── */}
             {activeSection === "audit" && (
               <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-4">
-                <div className="flex items-center justify-between">
-                  <h2 className="font-display text-2xl font-bold">
-                    {tx("auditLog","Audit Log")}
-                    <span className="text-xs font-mono text-muted-foreground ml-2">· {auditLog.length || staticTxTable.length} entries</span>
-                  </h2>
-                </div>
+                <h2 className="font-display text-2xl font-bold">
+                  {tx("auditLog", "Audit Log")}
+                  <span className="text-xs font-mono text-muted-foreground ml-2">
+                    · {auditLog.length || staticTxTable.length} entries
+                  </span>
+                </h2>
+
                 <div className="neon-card overflow-hidden">
                   <div className="grid grid-cols-4 gap-2 px-4 py-3 border-b border-border bg-muted/20 text-[10px] font-mono text-muted-foreground uppercase tracking-wider">
-                    <span>{tx("txHash","Tx ID / Hash")}</span>
-                    <span>{tx("farmer","Farmer")}</span>
-                    <span>{tx("merchant","Merchant")}</span>
-                    <span>{tx("status","Status")}</span>
+                    <span>{tx("txHash",   "Tx ID / Hash")}</span>
+                    <span>{tx("farmer",   "Farmer")}</span>
+                    <span>{tx("merchant", "Merchant")}</span>
+                    <span>{tx("status",   "Status")}</span>
                   </div>
                   <div className="divide-y divide-border">
                     {(auditLog.length > 0 ? auditLog : staticTxTable).map((t: any, i: number) => (
-                      <motion.div key={t.id||t.hash||i}
+                      <motion.div key={t.id || t.hash || i}
                         initial={{ opacity: 0, x: 10 }} animate={{ opacity: 1, x: 0 }}
                         transition={{ delay: i * 0.02 }}
                         className="grid grid-cols-4 gap-2 px-4 py-3 text-xs hover:bg-muted/20 transition-colors"
                       >
-                        <span className="font-mono text-primary truncate">{(t.hash||t.id||"").slice(0,14)}…</span>
-                        <span className="truncate">{t.farmer||t.user||"—"}</span>
-                        <span className="truncate">{t.merchant||t.details||"—"}</span>
+                        <span className="font-mono text-primary truncate">
+                          {(t.hash || t.id || "").toString().slice(0, 14)}…
+                        </span>
+                        <span className="truncate">{t.farmer || t.user || "—"}</span>
+                        <span className="truncate">{t.merchant || t.details || "—"}</span>
                         <span>
-                          <span className={`text-[10px] px-2 py-0.5 rounded-full border font-mono ${statusColor(t.status||"pending")}`}>
-                            {(t.status||"PENDING").toUpperCase()}
+                          <span className={`text-[10px] px-2 py-0.5 rounded-full border font-mono ${statusColor(t.status || "pending")}`}>
+                            {(t.status || "PENDING").toUpperCase()}
                           </span>
                         </span>
                       </motion.div>
@@ -715,48 +782,46 @@ const MonitorPortal = () => {
                 <div className="neon-card p-6">
                   <div className="flex items-center gap-2 mb-4">
                     <AlertOctagon className="w-4 h-4 text-destructive" />
-                    <span className="font-display font-bold">{tx("fraudDetector","AI fraud detector")}</span>
+                    <span className="font-display font-bold">{tx("fraudDetector", "AI fraud detector")}</span>
                     <span className="ml-auto text-[10px] font-mono text-primary flex items-center gap-1">
                       <span className="w-2 h-2 rounded-full bg-primary animate-pulse" /> Active
                     </span>
                   </div>
                   <div className="grid md:grid-cols-3 gap-3">
-                    {fraudFlags.map((f, i) => {
-                      const c = sevColor(f.sev);
-                      return (
-                        <div key={i} className={`rounded-xl border border-${c}/40 bg-${c}/5 p-3`}>
-                          <div className="flex items-center justify-between mb-1">
-                            <span className={`text-[10px] font-mono px-2 py-0.5 rounded-full bg-${c}/15 text-${c} border border-${c}/30`}>
-                              {f.sev}
-                            </span>
-                            <span className="text-[10px] text-muted-foreground font-mono">{f.time}</span>
-                          </div>
-                          <div className="text-sm">{f.msg}</div>
+                    {fraudFlags.map((f, i) => (
+                      // FIX 1 applied here too — static class strings
+                      <div key={i} className={`rounded-xl border p-3 ${sevBadgeClass(f.sev)}`}>
+                        <div className="flex items-center justify-between mb-1">
+                          <span className={`text-[10px] font-mono px-2 py-0.5 rounded-full ${sevInnerClass(f.sev)}`}>
+                            {f.sev}
+                          </span>
+                          <span className="text-[10px] text-muted-foreground font-mono">{f.time}</span>
                         </div>
-                      );
-                    })}
+                        <div className="text-sm">{f.msg}</div>
+                      </div>
+                    ))}
                   </div>
                 </div>
               </motion.div>
             )}
 
-            {/* ── ANALYTICS section ────────────────────────────────────── */}
+            {/* ── ANALYTICS ────────────────────────────────────────────────── */}
             {activeSection === "analytics" && (
               <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-6">
-                <h2 className="font-display text-2xl font-bold">{tx("analytics","Analytics")}</h2>
+                <h2 className="font-display text-2xl font-bold">{tx("analytics", "Analytics")}</h2>
 
                 <div className="grid lg:grid-cols-2 gap-6">
                   <div className="neon-card p-5">
                     <div className="font-mono text-xs text-muted-foreground uppercase tracking-widest mb-4">
-                      {tx("txVolume7d","Transaction volume · 7d")}
+                      {tx("txVolume7d", "Transaction volume · 7d")}
                     </div>
                     <div className="h-48">
                       <ResponsiveContainer>
                         <AreaChart data={volumeChart}>
                           <defs>
                             <linearGradient id="vg" x1="0" y1="0" x2="0" y2="1">
-                              <stop offset="0%" stopColor="hsl(142 100% 60%)" stopOpacity={0.6} />
-                              <stop offset="100%" stopColor="hsl(142 100% 60%)" stopOpacity={0} />
+                              <stop offset="0%"   stopColor="hsl(142 100% 60%)" stopOpacity={0.6} />
+                              <stop offset="100%" stopColor="hsl(142 100% 60%)" stopOpacity={0}   />
                             </linearGradient>
                           </defs>
                           <XAxis dataKey="d" tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 10 }} axisLine={false} tickLine={false} />
@@ -770,7 +835,7 @@ const MonitorPortal = () => {
 
                   <div className="neon-card p-5">
                     <div className="font-mono text-xs text-muted-foreground uppercase tracking-widest mb-4">
-                      {tx("listingsByState","Listings by state")}
+                      {tx("listingsByState", "Listings by state")}
                     </div>
                     <div className="h-48">
                       <ResponsiveContainer>
@@ -778,7 +843,7 @@ const MonitorPortal = () => {
                           <XAxis dataKey="s" tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 10 }} axisLine={false} tickLine={false} />
                           <YAxis tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 10 }} axisLine={false} tickLine={false} />
                           <Tooltip contentStyle={{ background: "hsl(var(--card))", border: "1px solid hsl(var(--border))", borderRadius: 8, fontSize: 12 }} />
-                          <Bar dataKey="v" radius={[4,4,0,0]}>
+                          <Bar dataKey="v" radius={[4, 4, 0, 0]}>
                             {stateChart.map((_, i) => (
                               <Cell key={i} fill={CHART_COLORS[i % CHART_COLORS.length]} />
                             ))}
@@ -792,10 +857,12 @@ const MonitorPortal = () => {
                 {/* Summary stats */}
                 <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
                   {[
-                    { l: tx("totalTransactions","Total transactions"), v: overview?.total_transactions?.toLocaleString()    || "28,456", c: "primary"   },
-                    { l: tx("completedTrades",  "Completed trades"),   v: overview?.completed_transactions?.toLocaleString()|| "21,034", c: "primary"   },
-                    { l: tx("pendingTrades",    "Pending trades"),     v: overview?.pending_transactions?.toLocaleString()  || "7,422",  c: "accent"    },
-                    { l: tx("tradeVolume",      "Trade volume"),       v: overview ? `₹${((overview.total_transaction_value||0)/10000000).toFixed(1)}Cr` : "₹28.4Cr", c: "secondary" },
+                    { l: tx("totalTransactions","Total transactions"), v: overview?.total_transactions?.toLocaleString()     || "28,456", c: "primary"   },
+                    { l: tx("completedTrades",  "Completed trades"),   v: overview?.completed_transactions?.toLocaleString() || "21,034", c: "primary"   },
+                    { l: tx("pendingTrades",    "Pending trades"),     v: overview?.pending_transactions?.toLocaleString()   || "7,422",  c: "accent"    },
+                    { l: tx("tradeVolume",      "Trade volume"),       v: overview
+                        ? `₹${((overview.total_transaction_value || 0) / 10000000).toFixed(1)}Cr`
+                        : "₹28.4Cr",                                                                                                      c: "secondary" },
                   ].map(s => (
                     <div key={s.l} className="neon-card p-5">
                       <div className="text-xs text-muted-foreground uppercase tracking-wider">{s.l}</div>
