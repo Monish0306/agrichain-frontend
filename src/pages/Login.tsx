@@ -9,39 +9,32 @@ const BASE_URL = import.meta.env.VITE_API_URL || "https://agrichain-api-tnhz.onr
 
 type Role = "farmer" | "merchant" | "monitor";
 
-// ── FIX 1: Add AbortController timeout to every fetch ─────────────────────────
-// Old code had NO timeout — if Render backend is cold-starting (sleeping),
-// the browser would wait 60-90 seconds with no feedback at all.
-// Fix: 25-second timeout with clear error message + retry button.
+// ── Fetch with timeout ────────────────────────────────────────────────────────
 const fetchWithTimeout = async (
   url: string,
   opts: RequestInit = {},
   timeoutMs = 25000
 ): Promise<Response> => {
   const controller = new AbortController();
-  const timer      = setTimeout(() => controller.abort(), timeoutMs);
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
   try {
     const res = await fetch(url, { ...opts, signal: controller.signal });
     clearTimeout(timer);
     return res;
   } catch (e: any) {
     clearTimeout(timer);
-    if (e.name === "AbortError") {
+    if (e.name === "AbortError")
       throw new Error("Server is waking up — please try again in 10 seconds.");
-    }
     throw e;
   }
 };
 
-// ── FIX 2: Wake-up ping sent the moment Login page loads ──────────────────────
-// Render free tier sleeps after 15 min idle. Pinging /health as soon as user
-// opens /login means the server wakes WHILE they fill the form.
-// By the time they click Sign In, server is already ready.
+// Wake backend the moment login page opens
 const pingBackend = () =>
-  fetch(`${BASE_URL}/health`, { method: "GET", signal: AbortSignal.timeout(5000) })
-    .catch(() => {}); // silent — just waking the server
+  fetch(`${BASE_URL}/health`, { signal: AbortSignal.timeout(5000) }).catch(() => {});
 
-// ── Login functions with timeout ──────────────────────────────────────────────
+// ── FARMER LOGIN ──────────────────────────────────────────────────────────────
+// If account exists → returns token. If new → creates account automatically.
 const farmerLogin = async (phone: string, name: string) => {
   const res = await fetchWithTimeout(
     `${BASE_URL}/api/auth/farmer-login`,
@@ -55,12 +48,14 @@ const farmerLogin = async (phone: string, name: string) => {
   if (!res.ok) throw new Error(data.detail || data.message || "Login failed");
   return {
     access_token: data.access_token,
-    user_id:      String(data.farmer_id   || data.user_id || ""),
-    name:         data.name               || name,
+    user_id:      String(data.farmer_id || data.user_id || ""),
+    name:         data.name || name,
     role:         "farmer" as const,
   };
 };
 
+// ── MERCHANT LOGIN ────────────────────────────────────────────────────────────
+// If account exists → returns token. If new → creates account automatically.
 const merchantLogin = async (
   email: string,
   password: string,
@@ -79,59 +74,58 @@ const merchantLogin = async (
   return {
     access_token: data.access_token,
     user_id:      String(data.merchant_id || data.user_id || ""),
-    name:         data.business_name      || data.name || businessName,
+    name:         data.business_name || data.name || businessName,
     role:         "merchant" as const,
   };
 };
 
+// ── MONITOR LOGIN ─────────────────────────────────────────────────────────────
+// ONLY works with exact credentials from .env:
+//   MONITOR_USERNAME = agrichain_monitor
+//   MONITOR_PASSWORD = Monitor@AgriChain2026
+// Endpoint: POST /api/auth/monitor/login  (JSON body)
 const monitorLogin = async (username: string, password: string) => {
-  const form = new URLSearchParams();
-  form.append("username", username);
-  form.append("password", password);
   const res = await fetchWithTimeout(
-    `${BASE_URL}/api/auth/token`,
+    `${BASE_URL}/api/auth/monitor/login`,
     {
       method:  "POST",
-      headers: { "Content-Type": "application/x-www-form-urlencoded" },
-      body:    form.toString(),
+      headers: { "Content-Type": "application/json" },
+      body:    JSON.stringify({ username, password }),
     }
   );
   const data = await res.json();
-  if (!res.ok) throw new Error(data.detail || data.message || "Login failed");
+  if (!res.ok) throw new Error(data.detail || data.message || "Invalid monitor credentials");
   return {
     access_token: data.access_token,
     user_id:      String(data.user_id || username),
-    name:         data.name           || username,
+    name:         data.name || "Monitor Admin",
     role:         "monitor" as const,
   };
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
 const Login = () => {
-  const navigate    = useNavigate();
-  const [role,      setRole]      = useState<Role>("farmer");
-  const [loading,   setLoading]   = useState(false);
-  const [error,     setError]     = useState("");
-  const [serverUp,  setServerUp]  = useState<boolean | null>(null); // null=checking
-  const [elapsed,   setElapsed]   = useState(0);
-  const timerRef    = useRef<ReturnType<typeof setInterval> | null>(null);
+  const navigate = useNavigate();
+  const [role,    setRole]    = useState<Role>("farmer");
+  const [loading, setLoading] = useState(false);
+  const [error,   setError]   = useState("");
+  const [serverUp, setServerUp] = useState<boolean | null>(null);
+  const [elapsed,  setElapsed]  = useState(0);
+  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   // Farmer
   const [phone,      setPhone]      = useState("");
   const [farmerName, setFarmerName] = useState("");
-
   // Merchant
   const [email,        setEmail]        = useState("");
   const [password,     setPassword]     = useState("");
   const [merchantName, setMerchantName] = useState("");
-
-  // Monitor
-  const [username,        setUsername]        = useState("");
+  // Monitor — pre-filled username
+  const [username,        setUsername]        = useState("agrichain_monitor");
   const [monitorPassword, setMonitorPassword] = useState("");
 
-  // FIX 2: Wake backend + redirect if already logged in
+  // ── On mount: redirect if already logged in + wake backend ──
   useEffect(() => {
-    // If already logged in → go straight to portal
     const user = getAuth();
     if (user?.access_token) {
       if      (user.role === "farmer")   navigate("/farmer",   { replace: true });
@@ -139,23 +133,17 @@ const Login = () => {
       else if (user.role === "monitor")  navigate("/monitor",  { replace: true });
       return;
     }
-
-    // Ping backend to wake it up
-    setServerUp(null);
+    // Ping backend to wake it up while user fills form
     pingBackend().then(() => setServerUp(true)).catch(() => setServerUp(false));
-
-    // Check server status every 8 seconds
-    const statusInterval = setInterval(() => {
+    const interval = setInterval(() => {
       fetch(`${BASE_URL}/health`, { signal: AbortSignal.timeout(4000) })
         .then(() => setServerUp(true))
         .catch(() => setServerUp(false));
     }, 8000);
-
-    return () => clearInterval(statusInterval);
+    return () => clearInterval(interval);
   }, []);
 
-  // FIX 3: Elapsed timer during login — shows "Still connecting... (12s)"
-  // so user knows it's working and doesn't click 3 times in frustration
+  // ── Elapsed timer — shows progress during slow cold start ──
   useEffect(() => {
     if (loading) {
       setElapsed(0);
@@ -172,50 +160,53 @@ const Login = () => {
     setLoading(true);
     try {
       let result: any;
+
       if (role === "farmer") {
         if (!phone || !farmerName) {
           setError("Phone and name are required");
           setLoading(false);
           return;
         }
-        result = await farmerLogin(phone, farmerName);
+        result = await farmerLogin(phone.trim(), farmerName.trim());
+
       } else if (role === "merchant") {
         if (!email || !password || !merchantName) {
-          setError("All fields required");
+          setError("All fields are required");
           setLoading(false);
           return;
         }
-        result = await merchantLogin(email, password, merchantName);
+        result = await merchantLogin(email.trim(), password, merchantName.trim());
+
       } else {
+        // Monitor — strict credential check
         if (!username || !monitorPassword) {
           setError("Username and password required");
           setLoading(false);
           return;
         }
-        result = await monitorLogin(username, monitorPassword);
+        result = await monitorLogin(username.trim(), monitorPassword);
       }
 
-      // FIX 4: saveAuth then navigate — was working but had no
-      // verification that token was actually saved before redirect.
-      // Now verify token exists in localStorage before navigating.
+      // Save token and verify it was stored
       saveAuth(result);
       const saved = localStorage.getItem("agrichain_token");
-      if (!saved) throw new Error("Failed to save login — please try again.");
+      if (!saved) throw new Error("Failed to save session — try disabling private browsing.");
 
+      // Navigate to correct portal
       if      (role === "farmer")   navigate("/farmer",   { replace: true });
       else if (role === "merchant") navigate("/merchant", { replace: true });
       else                          navigate("/monitor",  { replace: true });
 
     } catch (e: any) {
       const msg = e.message || "Login failed";
-      if (msg.includes("waking up") || msg.includes("abort") || msg.includes("timeout")) {
+      if (msg.includes("waking up") || msg.includes("AbortError")) {
         setError("⏳ Server is starting up. Wait 10 seconds and try again.");
-      } else if (msg.includes("fetch") || msg.includes("network") || msg.includes("Failed to fetch")) {
+      } else if (msg.includes("Failed to fetch") || msg.includes("network")) {
         setError("❌ Cannot reach server. Check your internet connection.");
-      } else if (msg.includes("401") || msg.includes("Incorrect") || msg.includes("Invalid")) {
-        setError("❌ Wrong credentials. Please check and try again.");
-      } else if (msg.includes("404") || msg.includes("not found")) {
-        setError("❌ Server not reachable. Please try again in a moment.");
+      } else if (msg.includes("monitor") || msg.includes("Invalid monitor") || msg.includes("401")) {
+        setError("❌ Wrong monitor credentials. Check username and password.");
+      } else if (msg.includes("private browsing") || msg.includes("save session")) {
+        setError("❌ " + msg);
       } else {
         setError(msg);
       }
@@ -228,23 +219,20 @@ const Login = () => {
     if (e.key === "Enter" && !loading) handleLogin();
   };
 
-  // Loading message — changes based on elapsed time
   const loadingMsg =
-    elapsed < 5  ? "Signing in…"                          :
-    elapsed < 12 ? `Connecting… (${elapsed}s)`            :
-    elapsed < 20 ? `Server waking up… (${elapsed}s)`      :
+    elapsed < 5  ? "Signing in…"                     :
+    elapsed < 12 ? `Connecting… (${elapsed}s)`       :
+    elapsed < 20 ? `Server waking up… (${elapsed}s)` :
                    `Almost there… (${elapsed}s)`;
 
   const roles = [
-    { id: "farmer",   label: "Farmer",   icon: Sprout,      desc: "Phone + Name"  },
-    { id: "merchant", label: "Merchant", icon: Store,       desc: "Email + Pass"  },
-    { id: "monitor",  label: "Monitor",  icon: ShieldCheck, desc: "Restricted"    },
+    { id: "farmer",   label: "Farmer",   icon: Sprout,      desc: "Phone + Name" },
+    { id: "merchant", label: "Merchant", icon: Store,       desc: "Email + Pass" },
+    { id: "monitor",  label: "Monitor",  icon: ShieldCheck, desc: "Restricted"   },
   ] as const;
 
   return (
     <div className="min-h-screen bg-background text-foreground flex items-center justify-center px-4 relative overflow-hidden">
-
-      {/* Background glow */}
       <div className="absolute top-1/3 left-1/2 -translate-x-1/2 w-96 h-96 bg-primary/5 rounded-full blur-3xl pointer-events-none" />
 
       <motion.div
@@ -253,18 +241,15 @@ const Login = () => {
         transition={{ duration: 0.5 }}
         className="w-full max-w-md relative z-10"
       >
-
-        {/* Header */}
+        {/* ── Header ── */}
         <div className="text-center mb-8">
           <div className="font-mono text-xs text-primary uppercase tracking-widest mb-2">
             AgriChain Intelligence
           </div>
           <h1 className="font-display text-4xl font-bold gradient-text">Sign In</h1>
-          <p className="text-muted-foreground text-sm mt-2">
-            Choose your portal to continue
-          </p>
+          <p className="text-muted-foreground text-sm mt-2">Choose your portal to continue</p>
 
-          {/* Server status indicator */}
+          {/* Server status pill */}
           <div className="mt-3 inline-flex items-center gap-1.5 text-[10px] font-mono">
             {serverUp === null && (
               <>
@@ -281,13 +266,13 @@ const Login = () => {
             {serverUp === false && (
               <>
                 <WifiOff className="w-3 h-3 text-accent" />
-                <span className="text-accent">Server starting up — may take 30s on first login</span>
+                <span className="text-accent">Server starting — first login may take 30s</span>
               </>
             )}
           </div>
         </div>
 
-        {/* Role selector */}
+        {/* ── Role selector ── */}
         <div className="grid grid-cols-3 gap-3 mb-6">
           {roles.map((r) => (
             <button
@@ -310,7 +295,7 @@ const Login = () => {
           ))}
         </div>
 
-        {/* Form card */}
+        {/* ── Form ── */}
         <motion.div
           key={role}
           initial={{ opacity: 0, x: 10 }}
@@ -320,9 +305,12 @@ const Login = () => {
           onKeyDown={handleKeyDown}
         >
 
-          {/* Farmer fields */}
+          {/* FARMER fields */}
           {role === "farmer" && (
             <>
+              <div className="text-[10px] font-mono text-primary/70 border border-primary/20 bg-primary/5 rounded-lg px-3 py-2">
+                🌱 Enter phone + name. New farmer? Account created automatically.
+              </div>
               <div>
                 <label className="text-xs text-muted-foreground uppercase tracking-wider">
                   Phone Number
@@ -348,15 +336,15 @@ const Login = () => {
                   className="w-full mt-1 px-4 py-3 rounded-xl bg-muted/30 border border-border text-sm outline-none focus:border-primary transition-colors"
                 />
               </div>
-              <p className="text-[10px] text-muted-foreground font-mono">
-                New farmer? Account is created automatically on first login.
-              </p>
             </>
           )}
 
-          {/* Merchant fields */}
+          {/* MERCHANT fields */}
           {role === "merchant" && (
             <>
+              <div className="text-[10px] font-mono text-secondary/70 border border-secondary/20 bg-secondary/5 rounded-lg px-3 py-2">
+                🏪 New merchant? Account created automatically on first login.
+              </div>
               <div>
                 <label className="text-xs text-muted-foreground uppercase tracking-wider">
                   Business Name
@@ -394,15 +382,15 @@ const Login = () => {
                   className="w-full mt-1 px-4 py-3 rounded-xl bg-muted/30 border border-border text-sm outline-none focus:border-secondary transition-colors"
                 />
               </div>
-              <p className="text-[10px] text-muted-foreground font-mono">
-                New merchant? Account is created automatically on first login.
-              </p>
             </>
           )}
 
-          {/* Monitor fields */}
+          {/* MONITOR fields */}
           {role === "monitor" && (
             <>
+              <div className="text-[10px] font-mono text-accent/80 border border-accent/20 bg-accent/5 rounded-lg px-3 py-2">
+                🔒 Restricted · Government / Admin only · Use your assigned credentials
+              </div>
               <div>
                 <label className="text-xs text-muted-foreground uppercase tracking-wider">
                   Username
@@ -422,7 +410,7 @@ const Login = () => {
                 <input
                   value={monitorPassword}
                   onChange={e => setMonitorPassword(e.target.value)}
-                  placeholder="••••••••"
+                  placeholder="Monitor@AgriChain2026"
                   type="password"
                   autoComplete="current-password"
                   className="w-full mt-1 px-4 py-3 rounded-xl bg-muted/30 border border-border text-sm outline-none focus:border-accent transition-colors"
@@ -431,13 +419,13 @@ const Login = () => {
             </>
           )}
 
-          {/* Error */}
+          {/* Error message */}
           <AnimatePresence>
             {error && (
               <motion.div
                 initial={{ opacity: 0, y: -4, height: 0 }}
                 animate={{ opacity: 1, y: 0,  height: "auto" }}
-                exit={{    opacity: 0, y: -4,  height: 0 }}
+                exit={{    opacity: 0,         height: 0 }}
                 className="text-destructive text-sm bg-destructive/10 border border-destructive/30 rounded-xl px-4 py-3 overflow-hidden"
               >
                 {error}
@@ -453,17 +441,14 @@ const Login = () => {
             )}
           </AnimatePresence>
 
-          {/* Submit */}
+          {/* Submit button */}
           <button
             onClick={handleLogin}
             disabled={loading}
             className="w-full py-3 rounded-xl bg-primary text-primary-foreground font-semibold text-sm hover:opacity-90 transition-all disabled:opacity-60 flex items-center justify-center gap-2"
           >
             {loading ? (
-              <>
-                <Loader2 className="w-4 h-4 animate-spin" />
-                {loadingMsg}
-              </>
+              <><Loader2 className="w-4 h-4 animate-spin" />{loadingMsg}</>
             ) : (
               `Enter ${role.charAt(0).toUpperCase() + role.slice(1)} Portal →`
             )}
