@@ -6,8 +6,6 @@ export const BASE_URL =
 const getToken = () => localStorage.getItem("agrichain_token") || "";
 
 // ── Core fetch wrapper ────────────────────────────────────────────────────────
-// FIX 1: Old version threw raw error text from server (e.g. long HTML 500 page)
-// Now parses JSON error first, falls back to text, gives clean message
 const apiFetch = async (path: string, opts: RequestInit = {}) => {
   const token = getToken();
   const res = await fetch(`${BASE_URL}${path}`, {
@@ -32,56 +30,56 @@ const apiFetch = async (path: string, opts: RequestInit = {}) => {
 };
 
 // ── auth ──────────────────────────────────────────────────────────────────────
-// FIX 2: Login.tsx imports { auth } from "../api" — was missing entirely.
-// Added all 3 login methods so Login.tsx works with either import style.
+// FIX: old auth endpoints were wrong (/api/auth/farmer-login instead of /api/auth/farmer/login)
 export const auth = {
   farmerLogin: async (phone: string, name: string) => {
-    const res = await fetch(`${BASE_URL}/api/auth/farmer-login`, {
+    const res = await fetch(`${BASE_URL}/api/auth/farmer/login`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ phone_number: phone, name }),
+      body: JSON.stringify({ phone: phone.trim(), name: name.trim() }),
     });
     const data = await res.json();
     if (!res.ok) throw new Error(data.detail || data.message || "Login failed");
     return {
       access_token: data.access_token,
-      user_id:      String(data.farmer_id   || data.user_id || ""),
-      name:         data.name               || name,
-      role:         "farmer"  as const,
+      user_id:      String(data.user_id || ""),
+      name:         data.name || name,
+      role:         "farmer" as const,
     };
   },
 
   merchantLogin: async (email: string, password: string, businessName: string) => {
-    const res = await fetch(`${BASE_URL}/api/auth/merchant-login`, {
+    const res = await fetch(`${BASE_URL}/api/auth/merchant/login`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ email, password, business_name: businessName }),
+      body: JSON.stringify({
+        email:         email.trim().toLowerCase(),
+        password:      password,
+        name:          businessName.trim(),
+      }),
     });
     const data = await res.json();
     if (!res.ok) throw new Error(data.detail || data.message || "Login failed");
     return {
       access_token: data.access_token,
-      user_id:      String(data.merchant_id || data.user_id || ""),
-      name:         data.business_name      || data.name || businessName,
+      user_id:      String(data.user_id || ""),
+      name:         data.name || businessName,
       role:         "merchant" as const,
     };
   },
 
   monitorLogin: async (username: string, password: string) => {
-    const form = new URLSearchParams();
-    form.append("username", username);
-    form.append("password", password);
-    const res = await fetch(`${BASE_URL}/api/auth/token`, {
+    const res = await fetch(`${BASE_URL}/api/auth/monitor/login`, {
       method: "POST",
-      headers: { "Content-Type": "application/x-www-form-urlencoded" },
-      body: form.toString(),
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ username: username.trim(), password: password.trim() }),
     });
     const data = await res.json();
     if (!res.ok) throw new Error(data.detail || data.message || "Login failed");
     return {
       access_token: data.access_token,
       user_id:      String(data.user_id || username),
-      name:         data.name           || username,
+      name:         data.name || "Monitor Admin",
       role:         "monitor" as const,
     };
   },
@@ -90,28 +88,25 @@ export const auth = {
 // ── advisory ──────────────────────────────────────────────────────────────────
 export const advisory = {
   recommend: (form: {
-    nitrogen:     number;
-    phosphorous:  number;
-    potassium:    number;
-    temperature:  number;
-    humidity:     number;
-    ph:           number;
-    rainfall:     number;
-    soil_type:    string;
-    crop_type:    string;
-    gps_lat:      number;
-    gps_lon:      number;
+    nitrogen:    number;
+    phosphorous: number;
+    potassium:   number;
+    temperature: number;
+    humidity:    number;
+    ph:          number;
+    rainfall:    number;
+    soil_type:   string;
+    crop_type:   string;
+    gps_lat:     number;
+    gps_lon:     number;
   }) =>
     apiFetch("/api/advisory/recommend", {
       method: "POST",
       body:   JSON.stringify(form),
     }),
 
-  // FIX 3: disease-detect was missing from api/index.ts
-  // Farmer.tsx calls this directly via fetch — kept as raw fetch
-  // because it sends FormData (multipart), not JSON
   detectDisease: async (file: File) => {
-    const token   = getToken();
+    const token    = getToken();
     const formData = new FormData();
     formData.append("file", file);
     const res = await fetch(`${BASE_URL}/api/advisory/disease-detect`, {
@@ -128,6 +123,7 @@ export const advisory = {
 };
 
 // ── prices ────────────────────────────────────────────────────────────────────
+// FIX: backend uses path param /api/prices/predict/{commodity} NOT query param
 export const prices = {
   getCommodities: (): Promise<{ commodities: string[] }> =>
     apiFetch("/api/prices/commodities"),
@@ -145,21 +141,17 @@ export const prices = {
       upper_bound?:    number;
     }>;
     sell_recommendation: {
-      action:                    string;
-      reason:                    string;
-      best_day_to_sell:          string;
+      action:                     string;
+      reason:                     string;
+      best_day_to_sell:           string;
       expected_price_on_best_day: number;
     };
   }> =>
-    apiFetch(
-      `/api/prices/predict?commodity=${encodeURIComponent(commodity)}&days=${days}`
-    ),
+    // FIX: use PATH parameter, not query string
+    apiFetch(`/api/prices/predict/${encodeURIComponent(commodity)}?days=${days}`),
 
-  // Historical prices for 30-day chart in Farmer portal
   historicalPrices: (commodity: string, days = 30) =>
-    apiFetch(
-      `/api/prices/historical?commodity=${encodeURIComponent(commodity)}&days=${days}`
-    ),
+    apiFetch(`/api/prices/historical/${encodeURIComponent(commodity)}?days=${days}`),
 };
 
 // ── marketplace ───────────────────────────────────────────────────────────────
@@ -188,9 +180,9 @@ export const marketplace = {
     apiFetch("/api/marketplace/my-orders"),
 
   placeOrder: (form: {
-    listing_id:          number;
-    quantity_kg:         number;
-    offer_price_per_kg:  number;
+    listing_id:         number;
+    quantity_kg:        number;
+    offer_price_per_kg: number;
   }) =>
     apiFetch("/api/marketplace/order", {
       method: "POST",
@@ -203,23 +195,21 @@ export const marketplace = {
   transactions: (limit = 30): Promise<{ transactions: any[] }> =>
     apiFetch(`/api/marketplace/transactions?limit=${limit}`),
 
-  // Used by Farmer.tsx — lat/lon coordinates
   getRoute: (
     originLat: number,
     originLon: number,
     destLat:   number,
     destLon:   number
   ): Promise<{
-    distance_km:       number;
-    duration_minutes:  number;
-    steps?:            string[];
-    error?:            string;
+    distance_km:      number;
+    duration_minutes: number;
+    steps?:           string[];
+    error?:           string;
   }> =>
     apiFetch(
       `/api/marketplace/route?origin_lat=${originLat}&origin_lon=${originLon}&dest_lat=${destLat}&dest_lon=${destLon}`
     ),
 
-  // Used by Merchant.tsx — place name strings
   route: (from: string, to: string) =>
     apiFetch(
       `/api/marketplace/route?from_place=${encodeURIComponent(from)}&to_place=${encodeURIComponent(to)}`
@@ -234,22 +224,21 @@ export const finance = {
     state:      string;
     category:   string;
   }): Promise<{
-    cost_per_acre:          number;
-    total_investment:       number;
-    kcc_loan_amount:        number;
-    annual_interest:        number;
-    monthly_emi:            number;
-    net_cost_after_subsidy: number;
-    schemes_found:          number;
+    cost_per_acre:           number;
+    total_investment:        number;
+    kcc_loan_amount:         number;
+    annual_interest:         number;
+    monthly_emi:             number;
+    net_cost_after_subsidy:  number;
+    schemes_found:           number;
     total_subsidy_available: number;
-    matching_schemes:       any[];
+    matching_schemes:        any[];
   }> =>
     apiFetch("/api/finance/calculate", {
       method: "POST",
       body:   JSON.stringify(form),
     }),
 
-  // Used by Farmer.tsx
   calculateEmi: (
     principal:   number,
     annual_rate: number,
@@ -273,14 +262,13 @@ export const weather = {
   current: (lat: number, lon: number) =>
     apiFetch(`/api/weather/current?lat=${lat}&lon=${lon}`),
 
-  // Used by Farmer.tsx
   getForecast: (
     lat:   number,
     lon:   number,
     city?: string
   ): Promise<{
-    source:          string;
-    forecast:        Array<{
+    source:         string;
+    forecast:       Array<{
       date:        string;
       temp_max:    number;
       temp_min?:   number;
@@ -303,13 +291,11 @@ export const weather = {
 
 // ── monitor ───────────────────────────────────────────────────────────────────
 export const monitor = {
-  stats:       ()            => apiFetch("/api/monitor/stats"),
-  auditLog:    (limit = 50)  => apiFetch(`/api/monitor/audit-log?limit=${limit}`),
-  fraudAlerts: ()            => apiFetch("/api/monitor/fraud-alerts"),
-  fraudScan:   ()            => apiFetch("/api/monitor/fraud-scan", { method: "POST" }),
-  volumeChart: ()            => apiFetch("/api/monitor/volume-chart"),
-
-  // Raw fetch for CSV download (binary blob, not JSON)
+  stats:       ()           => apiFetch("/api/monitor/stats"),
+  auditLog:    (limit = 50) => apiFetch(`/api/monitor/audit-log?limit=${limit}`),
+  fraudAlerts: ()           => apiFetch("/api/monitor/fraud-alerts"),
+  fraudScan:   ()           => apiFetch("/api/monitor/fraud-scan", { method: "POST" }),
+  volumeChart: ()           => apiFetch("/api/monitor/volume-chart"),
   export: (type: "transactions" | "listings") =>
     fetch(`${BASE_URL}/api/monitor/export/${type}`, {
       headers: { Authorization: `Bearer ${getToken()}` },
@@ -323,8 +309,6 @@ export const merchant = {
 };
 
 // ── language ──────────────────────────────────────────────────────────────────
-// FIX 4: translateText in useTranslation.ts calls /api/language/translate
-// This export lets other files call it via api if needed
 export const language = {
   translate: (text: string, targetLanguage: string) =>
     apiFetch("/api/language/translate", {
